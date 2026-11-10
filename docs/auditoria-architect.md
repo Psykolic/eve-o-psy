@@ -49,7 +49,7 @@
 
 ## 4. Observações para 7 Clientes EVE
 
-- **DispatcherTimer** com `ThumbnailRefreshPeriod` (configurável, default 500ms) faz polling ativo
+- **DispatcherTimer** com `ThumbnailRefreshPeriod` (configurável, default 500ms, mínimo 300ms no Windows, 10ms no Linux) faz polling ativo
 - `_thumbnailViews` Dictionary<IntPtr, IThumbnailView> - O(1) lookup
 - **Lazy location notifications** com debounce (`DEFAULT_LOCATION_CHANGE_NOTIFICATION_DELAY = 2` cycles)
 - **Forced refresh** a cada 2 ciclos (`FORCED_REFRESH_CYCLE_THRESHOLD`)
@@ -147,6 +147,30 @@ private void RegisterThumbnail()
 }
 ```
 - **Risco**: Cada `LiveThumbnailView` cria seu próprio `DwmThumbnail`. `forceRefresh` a cada 2 ciclos (FORCED_REFRESH_CYCLE_THRESHOLD) causa unregister/register. Windows tem limite não documentado de thumbnails DWM simultâneos (~16-64).
+
+#### 4. **CycleNextClient()** — alocações de dicionário e operações LINQ repetidas a cada hotkey
+**[HYPOTHESIS — Otimização não medida]**
+- **Arquivo**: `src/Eve-O-Preview/Services/Implementation/ThumbnailManager.cs` linhas 137-236
+- **Evidência**:
+```csharp
+// ThumbnailManager.cs:137-236
+public void CycleNextClient(bool isForwards, Dictionary<string, int> cycleOrder)
+{
+    Dictionary<string, int> _cycleOrder = new Dictionary<string, int>(cycleOrder);  // Nova alocação a cada chamada
+    // ...
+    if (isForwards) { clientOrder = _cycleOrder.OrderBy(x => x.Value); }            // LINQ OrderBy
+    else { clientOrder = _cycleOrder.OrderByDescending(x => x.Value); }              // LINQ OrderByDescending
+    // ...
+    foreach (var t in clientOrder) { ... }
+    // Múltiplas chamadas _thumbnailViews.FirstOrDefault / Any / OrderBy dentro do loop
+}
+```
+- **Problemas identificados**:
+  - Nova alocação de `Dictionary<string, int>` a cada invocação (linha 140)
+  - Múltiplos `OrderBy`/`OrderByDescending` sobre `_thumbnailViews` (linhas 153, 157, 181, 213, 226)
+  - `FirstOrDefault`/`Any` repetidos dentro de loops aninhados (linhas 168, 175, 210, 223, 225)
+  - Triggered por hotkeys globais — usuário pode pressionar rapidamente (ex: F14 repetido)
+- **Status**: Hipótese de otimização — **não medido em produção**. Requer benchmark (BenchmarkDotNet) e profiling real antes de qualquer refatoração.
 
 ---
 
@@ -551,6 +575,46 @@ Modifica `SPI_SETANIMATION` **global do Windows** - afeta TODAS as apps, não s�
 | 0004 | Adicionar JsonSchema validation para configuração | Proposto |
 | 0005 | Implementar GDI handle safety com SafeHandle/try-finally | Proposto |
 | 0006 | Migrar Linux/Wine compat para processo separado ou library nativa | Proposto |
+
+---
+
+---
+
+## 11. Classificação de Findings: Comprovados vs Hipóteses vs Metas
+
+### ✅ **Comprovados (FACT)** — Evidência direta no código, reproduzível
+| ID | Finding | Arquivo/Linha | Evidência |
+|----|---------|---------------|-----------|
+| #5.1 | Zoom on hover degradação | ThumbnailManager.cs:637-654, 787-805 | Código chama `ZoomIn` → `DwmUpdateThumbnailProperties` a cada hover |
+| #5.2 | DispatcherTimer polling | ThumbnailManager.cs:76-79, 291-295 | Timer roda a cada `ThumbnailRefreshPeriod` (default 500ms) |
+| #5.3 | DWM registration por cliente | DwmThumbnail.cs:21-55, LiveThumbnailView.cs:25-36 | Cada view cria próprio `DwmThumbnail`; `forceRefresh` unregister/register |
+| #6.1 | Acoplamento forte DWM | ThumbnailManager.cs:57-63, LiveThumbnailView.cs:17 | `IWindowManager.GetLiveThumbnail()` retorna `IDwmThumbnail` concreto |
+| #6.2 | Win32 handle leaks | WindowManager.cs:295-325 | `GetStaticThumbnail`: exceção em `Image.FromHbitmap` → `DeleteObject` não chamado |
+| #6.3 | JSON config sem schema | ConfigurationStorage.cs:19-41, ThumbnailConfiguration.cs:440-468 | Apenas `ApplyRestrictions` (clamp numérico), sem validação estrutural |
+| #6.4 | MVP + MediatR misturados | MainFormPresenter.cs:18-65, ThumbnailManager.cs:34, 395, 745, 1039 | Service de domínio depende de `IMediator` (infraestrutura) |
+| #6.5 | Sem testes automatizados | Solution-wide | `Glob("**/*Test*.cs")` = 0 resultados |
+
+### ⚠️ **Hipóteses (HYPOTHESIS)** — Plausíveis, mas requerem medição/profiling
+| ID | Hipótese | Como validar |
+|----|----------|--------------|
+| #H1 | `CycleNextClient()` alocações/LINQ causam latência perceptível em hotkeys rápidos | BenchmarkDotNet: `CycleNextClient` com 7 clientes, medir allocation rate + latency p99 |
+| #H2 | `DispatcherTimer` em 500ms consome CPU significativo no idle | `dotnet-counters` / PerfView: CPU % com 7 clientes, comparar 500ms vs 1000ms vs push-based |
+| #H3 | DWM thumbnail limit (~16-64) é atingido em cenários reais | Stress test: abrir 20+ clientes EVE, observar `DwmRegisterThumbnail` falhas |
+| #H4 | GDI leaks em `GetStaticThumbnail` ocorrem na prática | Teste de estresse 1000 iterações + `dotnet-counters` monitorar GDI handles |
+| #H5 | `SPI_SETANIMATION` global afeta outras apps | Verificar comportamento Windows ao chamar `TurnOffAnimation`/`RestoreAnimation` |
+| #H6 | Virtualização render-only-visíveis reduz CPU/memória significativamente | Prototype + medir CPU/memória 7 clientes com/sem virtualização |
+
+### 🎯 **Metas de Desempenho (PERFORMANCE TARGETS)** — Objetivos mensuráveis por fase
+| Métrica | Baseline (estático) | Fase 1 Target | Fase 2 Target | Fase 3 Target | Validação |
+|---------|---------------------|---------------|---------------|---------------|-----------|
+| CPU idle (7 clientes) | ~3–5% | <2% | **<1%** | <1% | `dotnet-counters` / PerfView 5min |
+| Memória (7 clientes) | ~150–200MB | <150MB | **<100MB** | <80MB | `dotnet-gcdump` / PerfView |
+| Refresh latency p99 | ~50–100ms | <50ms | **<30ms** | <20ms | BenchmarkDotNet `RefreshThumbnails` |
+| DWM handles abertos | 7+ | 7 (pool) | **Pool size configurável** | N/A (abstração) | Handle count via Process Explorer |
+| Startup time | ~2–3s | <2s | <1.5s | <1s (AOT) | `dotnet-trace` cold start |
+| Test coverage | 0% | 60% | 80% | 85% | `coverlet` / CI |
+
+> **Regra**: Nenhuma otimização baseada em hipóteses (#H1–H6) será implementada sem **medição prévia** que confirme o problema e **benchmark pós-mudança** que valide a melhoria. Metas da Fase 2+ só são "Done" com dados reais.
 
 ---
 

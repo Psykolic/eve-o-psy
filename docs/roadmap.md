@@ -34,68 +34,85 @@
 ## Fase 1 — Stabilization (1–2 Sprints)
 
 ### Objetivo
-Eliminar blockers de produção, estabelecer infraestrutura de testes automatizados e introduzir abstrações para desacoplar DWM/Win32 do núcleo da aplicação.
+Eliminar blockers de produção, estabelecer infraestrutura de testes automatizados e introduzir abstrações para desacoplar DWM/Win32 do núcleo da aplicação. **Prioridade absoluta: estabilidade, gerenciamento correto de recursos GDI/DWM, integridade das configurações e testes de regressão.**
+
+### Comportamento a Preservar (Regressão Zero)
+- **Ciclagem de 6 clientes principais**: 6 clientes EVE no monitor principal ciclam via hotkeys (F13/F14, F15/F16, etc.) conforme `CycleGroupNClientsOrder`
+- **Cliente de intel no monitor secundário**: 1 cliente EVE dedicado a "intel/scout" permanece **fora do ciclo principal** (`IsExcludedFromCycleGroup = true`), posicionado fixo no monitor secundário
+- **Hotkeys globais**: Ciclagem forward/backward, minimize all, toggle cycle group — funcionamento idêntico ao atual
+- **Configuração JSON**: Estrutura existente mantida; validação apenas adiciona rejeição de inválidos no startup
 
 ### Deliverables & Acceptance Criteria
 
 | ID | Deliverable | Acceptance Criteria (Mensurável) | Prioridade | Auditoria Ref. |
 |----|-------------|----------------------------------|------------|----------------|
-| **1.1** | Projeto de testes `EveO.Tests` (xUnit + Moq + FluentAssertions) | • Build passa em CI<br>• Coverage mínimo 60% em `ThumbnailManager`, `WindowManager`, `Configuration`<br>• Testes executam em < 30s | **P0** | #7.2 |
-| **1.2** | Interface `IThumbnailProvider` + implementação `DwmThumbnailProvider` | • `ThumbnailManager` depende apenas de `IThumbnailProvider`<br>• Mock `TestThumbnailProvider` permite testes unitários sem DWM<br>• Zero breaking changes na API pública | **P0** | #6.1, #6.4, #6.8 |
-| **1.3** | Validação de configuração JSON (JsonSchema ou FluentValidation) | • Schema JSON versionado em `docs/config-schema.json`<br>• Falha de validação retorna erros estruturados (não exception genérica)<br>• Configurações inválidas rejeitadas no startup | **P1** | #6.3 |
-| **1.4** | Performance Counters / `System.Diagnostics.Metrics` no `ThumbnailManager` | • Métricas expostas: `thumbnail.refresh.duration`, `thumbnail.count.active`, `dwm.handles.open`, `cpu.usage.percent`<br>• Exportador OTLP/Prometheus configurável<br>• Dashboard de referência (Grafana/JSON) documentado | **P1** | #6.1, #8.1 |
-| **1.5** | BenchmarkDotNet suite para paths críticos | • Benchmarks: `ThumbnailManager.RefreshCycle`, `DwmThumbnail.Register/Update`, `WindowManager.Activate`<br>• Baseline commitado em `benchmarks/baseline-<date>.json`<br>• Regression detection em CI (falha se >10% degrade) | **P1** | #8.1 |
-| **1.6** | Handle leak detection & cleanup em `WindowManager` | • `SafeHandle`/`CriticalFinalizerObject` para todos handles Win32<br>• Teste de estresse: 1000 ciclos activate/minimize sem leak (verified via `dotnet-counters`)<br>• `IDisposable` implementado corretamente em `DwmThumbnail` | **P1** | #6.2 |
-| **1.7** | ADRs (Architecture Decision Records) para decisões-chave | • ADR-001: MVP vs MediatR coexistence<br>• ADR-002: Abstração DWM via `IThumbnailProvider`<br>• ADR-003: JSON config + JsonSchema validation<br>• Armazenados em `docs/adr/` | **P2** | #7.5 |
+| **1.1** | Projeto de testes `EveO.Tests` (xUnit + Moq + FluentAssertions) | • Build passa em CI<br>• Coverage mínimo 60% em `ThumbnailManager`, `WindowManager`, `Configuration`<br>• Testes executam em < 30s<br>• **Regression suite**: 7-client cycle, minimize all, layout save/load, config validation | **P0** | #6.5, #7.2 |
+| **1.2** | Interface `IThumbnailProvider` + implementação `DwmThumbnailProvider` | • `ThumbnailManager` depende apenas de `IThumbnailProvider`<br>• Mock `TestThumbnailProvider` permite testes unitários sem DWM<br>• Zero breaking changes na API pública<br>• **Regression**: 6-client cycle + 1 intel excluded funciona idêntico | **P0** | #6.1, #6.4, #6.8 |
+| **1.3** | `SafeHandle`/`CriticalFinalizerObject` para todos handles Win32/GDI | • `DwmThumbnail` implementa `IDisposable` + `SafeHandle`<br>• `WindowManager.GetStaticThumbnail`: `try/finally` garante `DeleteObject` mesmo em exceção<br>• Teste de estresse: 1000 ciclos activate/minimize sem leak (verified via `dotnet-counters` GDI handles) | **P0** | #6.2 |
+| **1.4** | Validação de configuração JSON (FluentValidation) | • Regras em código C# (não JsonSchema) — mais testáveis, flexíveis<br>• Falha de validação retorna `ValidationResult` estruturado (não exception genérica)<br>• Configurações inválidas rejeitadas no startup com mensagem clara<br>• **Regression**: Configs válidas atuais continuam carregando; defaults aplicados se ausentes | **P1** | #6.3 |
+| **1.5** | Performance Counters / `System.Diagnostics.Metrics` no `ThumbnailManager` | • Métricas expostas: `thumbnail.refresh.duration`, `thumbnail.count.active`, `dwm.handles.open`, `cpu.usage.percent`, `gdi.handles.open`<br>• Exportador OTLP/Prometheus configurável via `IAppConfig`<br>• Dashboard de referência (Grafana JSON) documentado em `docs/metrics-dashboard.json` | **P1** | #6.1, #8.1 |
+| **1.6** | BenchmarkDotNet suite para paths críticos | • Benchmarks: `ThumbnailManager.RefreshCycle`, `CycleNextClient`, `DwmThumbnail.Register/Update`, `WindowManager.Activate`, `WindowManager.GetStaticThumbnail`<br>• Baseline commitado em `benchmarks/baseline-<date>.json`<br>• Regression detection em CI (falha se >10% degrade em qualquer benchmark)<br>• **Hipóteses a validar**: #H1 (CycleNextClient allocs), #H2 (Timer CPU), #H4 (GDI leaks) | **P1** | #8.1, #H1–H6 |
+| **1.7** | ADRs (Architecture Decision Records) para decisões-chave | • ADR-001: MVP vs MediatR coexistence<br>• ADR-002: Abstração DWM via `IThumbnailProvider`<br>• ADR-003: JSON config + FluentValidation (não JsonSchema)<br>• ADR-004: **Sem Rx.NET / Reactive Extensions na Fase 1** — só após medição que comprove necessidade (ver #H2)<br>• ADR-005: **Sem DWM pooling na Fase 1** — só após medição que comprove handle limit real (ver #H3)<br>• Armazenados em `docs/adr/` | **P2** | #7.5 |
 
 ### Dependências
 - 1.1 → 1.2 (testes precisam da abstração para mockar)
-- 1.2 → 1.6 (handle cleanup testável via interface)
-- 1.3 independente
-- 1.4, 1.5 podem rodar em paralelo após 1.1
+- 1.2 → 1.3 (handle cleanup testável via interface)
+- 1.3 independente (pode iniciar em paralelo)
+- 1.4 independente
+- 1.5, 1.6 podem rodar em paralelo após 1.1
+- 1.7 no final da fase
 
 ### Riscos & Mitigações
 
 | Risco | Probabilidade | Impacto | Mitigação |
 |-------|---------------|---------|-----------|
 | DWM API behavior difere em Wine/Proton | Média | Alto | Testes de integração em container Wine; fallback `StaticThumbnailView` validado |
-| JsonSchema adiciona dependência/rigidez | Baixa | Médio | Usar FluentValidation com regras em código (mais flexível, testável) |
-| BenchmarkDotNet em single-file publish | Média | Baixo | Benchmarks em projeto separado; não incluídos no publish final |
+| FluentValidation adiciona dependência | Baixa | Baixo | Biblioteca madura, zero-runtime-cost, amplamente usada |
+| BenchmarkDotNet em single-file publish | Média | Baixo | Benchmarks em projeto separado `EveO.Benchmarks`; não incluídos no publish final |
+| Mudança de `IDwmThumbnail` para `IThumbnailProvider` quebra Linux/Wine | Baixa | Médio | `StaticThumbnailProvider` implementa mesma interface; Wine path inalterado |
+| Config validation rejeita configs legítimas de usuários existentes | Baixa | Alto | Testes de migration: carregar configs reais de usuários (anonymized) em CI |
 
 ---
 
 ## Fase 2 — Architecture Cleanup (3–5 Sprints)
 
 ### Objetivo
-Separar camadas (Domain/Infrastructure/Presentation), substituir polling por padrões reativos e implementar virtualização de thumbnails para suportar 7+ clientes com CPU <1% idle.
+Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições** se padrões reativos e virtualização são necessários, e implementar apenas o que dados reais justificarem.
+
+### Princípio Orientador da Fase 2
+> **"Measure first, implement second."** Nenhuma das seguintes tecnologias será adotada sem evidência técnica de benchmark/profiling real:
+> - Rx.NET / Reactive Extensions / `IAsyncEnumerable` (ver #H2)
+> - DWM Thumbnail Pooling (ver #H3)
+> - Virtualização de thumbnails (ver #H6)
+> - Separação completa de camadas (avaliar custo/benefício vs risco de regressão)
 
 ### Deliverables & Acceptance Criteria
 
 | ID | Deliverable | Acceptance Criteria (Mensurável) | Prioridade | Auditoria Ref. |
 |----|-------------|----------------------------------|------------|----------------|
-| **2.1** | Separação de camadas: `EveO.Core` (Domain), `EveO.Infrastructure` (Win32/DWM), `EveO.Presentation` (Views) | • `EveO.Core` zero dependências Windows-only (netstandard2.1 ou net8.0)<br>• `ThumbnailManager` → `ThumbnailOrchestrator` em Core, usa `IThumbnailProvider`/`IWindowManager` de Infrastructure<br>• Build `EveO.Core` passa em Linux (dotnet build --os linux) | **P1** | #6.8, #6.9 |
-| **2.2** | Migração `DispatcherTimer` → Reactive Extensions (Rx.NET) / `IAsyncEnumerable` | • `ThumbnailRefreshStream : IObservable<RefreshTick>` substitui timer<br>• Backpressure: `Buffer`/`Throttle` configurável via `IAppConfig`<br>• CPU idle 7 clientes < 1% (target Tabela 8) | **P1** | #6.2, #6.7 |
-| **2.3** | Virtualização de thumbnails (render apenas visíveis) | • `VirtualizingThumbnailPanel` (WPF) ou `VirtualizingStackPanel` custom<br>• Apenas N thumbnails visíveis registram DWM (N = viewport rows × cols)<br>• Memória 7 clientes < 100MB (target Tabela 8) | **P1** | #6.8, #5.1 |
-| **2.4** | Pool de `DwmThumbnail` (registro/desregistro reutilizado) | • `ThumbnailPool : IThumbnailPool` com `Rent()`/`Return()`<br>• Handles DWM abertos = pool size (configurável, default 7)<br>• Latency refresh < 30ms (target Tabela 8) | **P2** | #6.2, #6.4 |
-| **2.5** | Testes de integração Win32 com TestContainers / Docker | • Container Windows Server Core ou Wine para CI<br>• Testes: `DwmThumbnailProvider.Register`, `WindowManager.Activate`, hotkeys globais<br>• Executam em CI (GitHub Actions self-hosted ou Azure DevOps) | **P2** | #6.9 |
-| **2.6** | Event-driven config changes (MediatR notifications) | • `ConfigurationChangedNotification` publicado ao salvar<br>• `ThumbnailOrchestrator` reage via handler (não polling)<br>• Hot-reload de `ThumbnailRefreshPeriod`, `ZoomFactor` sem restart | **P2** | #5.3, #6.7 |
-| **2.7** | Documentação de arquitetura atualizada (C4 + ADRs) | • Diagramas C4: Context, Container, Component, Code<br>• ADR-004: Layer separation<br>• ADR-005: Reactive streams over polling<br>• ADR-006: Thumbnail virtualization strategy | **P3** | #7.5 |
+| **2.1** | Separação de camadas: `EveO.Core` (Domain), `EveO.Infrastructure` (Win32/DWM), `EveO.Presentation` (Views) | • `EveO.Core` zero dependências Windows-only (netstandard2.1 ou net8.0)<br>• `ThumbnailManager` → `ThumbnailOrchestrator` em Core, usa `IThumbnailProvider`/`IWindowManager` de Infrastructure<br>• Build `EveO.Core` passa em Linux (`dotnet build --os linux`)<br>• **Regression**: Comportamento 6+1 clientes idêntico | **P1** | #6.8, #6.9 |
+| **2.2** | **Spike técnico (2 dias)**: Avaliar `DispatcherTimer` → Reactive Streams (`IAsyncEnumerable` + `Channel<T>` ou Rx.NET) | • Prototype com `ProcessMonitor` push-based (event-driven process changes)<br>• Medir CPU idle 7 clientes: baseline (timer 500ms) vs push-based<br>• **Gate**: Só prossegue se redução >30% CPU idle comprovada<br>• Documentar decisão no ADR-006 | **P1** | #6.2, #6.7, #H2 |
+| **2.3** | **Spike técnico (2 dias)**: Avaliar virtualização de thumbnails (render apenas visíveis) | • Prototype: `VirtualizingThumbnailPanel` (WPF) ou ocultar DWM thumbnails fora do viewport<br>• Medir memória/CPU 7 clientes: baseline vs virtualizado<br>• **Gate**: Só prossegue se redução >20% memória comprovada<br>• Documentar decisão no ADR-007 | **P1** | #6.8, #5.1, #H6 |
+| **2.4** | **Spike técnico (2 dias)**: Avaliar pool de `DwmThumbnail` (registro/desregistro reutilizado) | • Prototype: `ThumbnailPool : IThumbnailPool` com `Rent()`/`Return()`<br>• Medir: handles DWM abertos, latency refresh, falhas `DwmRegisterThumbnail` sob carga<br>• **Gate**: Só prossegue se limite real de handles DWM comprovado (#H3) OU latency >30ms comprovado<br>• Documentar decisão no ADR-008 | **P2** | #6.2, #6.4, #H3 |
+| **2.5** | Testes de integração Win32 com TestContainers / Docker | • Container Windows Server Core ou Wine para CI<br>• Testes: `DwmThumbnailProvider.Register`, `WindowManager.Activate`, hotkeys globais<br>• Executam em CI (GitHub Actions self-hosted runners Windows) | **P2** | #6.9 |
+| **2.6** | Event-driven config changes (MediatR notifications) | • `ConfigurationChangedNotification` publicado ao salvar<br>• `ThumbnailOrchestrator` reage via handler (não polling)<br>• Hot-reload de `ThumbnailRefreshPeriod`, `ZoomFactor` sem restart<br>• **Regression**: Config save/load funciona idêntico | **P2** | #5.3, #6.7 |
+| **2.7** | Documentação de arquitetura atualizada (C4 + ADRs) | • Diagramas C4: Context, Container, Component, Code<br>• ADR-004 a ADR-008 documentando decisões da Fase 2<br>• `docs/architecture/README.md` com visão geral | **P3** | #7.5 |
 
 ### Dependências
 - 2.1 → 2.2, 2.3, 2.4 (core abstractions first)
-- 2.2 → 2.6 (reactive stream enables event-driven config)
-- 2.3, 2.4 podem rodar em paralelo após 2.1
+- 2.2, 2.3, 2.4 são **spikes independentes** — podem rodar em paralelo após 2.1
 - 2.5 requer 2.1 (Infrastructure isolado)
+- 2.6 requer 2.1 + 2.2 (event-driven precisa de abstrações estáveis)
 - 2.7 no final da fase
 
 ### Riscos & Mitigações
 
 | Risco | Probabilidade | Impacto | Mitigação |
 |-------|---------------|---------|-----------|
-| Rx.NET adiciona complexidade/curva de aprendizado | Média | Médio | Spike de 2 dias; alternativa `IAsyncEnumerable` + `Channel<T>` se Rx muito pesado |
-| Virtualização WPF pode quebrar DWM thumbnail positioning | Alta | Alto | Prototype early; fallback: manter DWM ativo mas ocultar visual (opacity=0) |
-| Layer separation quebra single-file publish | Baixa | Médio | Manter `EveO.App` como entry point; ILMerge/assembly loading testado em CI |
+| Spikes mostram que otimizações não valem a pena | Média | Baixo | **Resultado aceitável** — documenta-se no ADR e mantém implementação atual |
+| Layer separation quebra single-file publish | Baixa | Médio | Manter `EveO.App` como entry point; testar ILMerge/assembly loading em CI |
 | TestContainers Windows em CI Linux | Alta | Alto | Usar runners Windows self-hosted para testes Win32; Linux tests apenas Core |
+| MediatR notifications causam loops de eventos | Baixa | Médio | `DisableViewEvents`/`EnableViewEvents` pattern já existe; estender para config changes |
 
 ---
 
@@ -137,22 +154,28 @@ Habilitar execução nativa no Linux/macOS via Avalonia/Uno, introduzir plugin a
 
 | Auditoria Finding | Fase(s) | Items |
 |-------------------|---------|-------|
-| #5.1 Zoom on hover perf | 1.4, 2.3 | Metrics + Virtualization |
-| #5.2 DispatcherTimer polling | 2.2 | Reactive streams |
-| #5.3 DWM thumbnail limits | 2.4 | Thumbnail pool |
+| #5.1 Zoom on hover perf | 1.5, 2.3 (spike) | Benchmarks + Virtualization spike |
+| #5.2 DispatcherTimer polling | 2.2 (spike) | Reactive streams spike (gate: >30% CPU reduction) |
+| #5.3 DWM thumbnail limits | 2.4 (spike) | Thumbnail pool spike (gate: handle limit comprovado) |
 | #6.1 Strong coupling DWM | 1.2, 2.1, 3.2 | IThumbnailProvider + Layer separation |
-| #6.2 Win32 handle leaks | 1.6, 2.4 | SafeHandle + Pool |
-| #6.3 JSON config no schema | 1.3 | FluentValidation/JsonSchema |
+| #6.2 Win32 handle leaks | 1.3, 2.4 (spike) | SafeHandle + Pool spike |
+| #6.3 JSON config no schema | 1.4 | FluentValidation |
 | #6.4 MVP + MediatR mixed | 2.1, 2.6 | Layer separation + Event-driven |
 | #6.5 No automated tests | 1.1, 1.5, 2.5 | Test project + Benchmarks + Integration |
 | #6.6 Single-file debug | 2.1 | Layered build (Core testable) |
-| #6.7 Reactive patterns | 2.2, 2.6 | Rx.NET / IAsyncEnumerable |
-| #6.8 Virtualization | 2.3 | VirtualizingThumbnailPanel |
+| #6.7 Reactive patterns | 2.2 (spike), 2.6 | Spike first, then event-driven config |
+| #6.8 Virtualization | 2.3 (spike) | Virtualization spike (gate: >20% memory reduction) |
 | #6.9 TestContainers | 2.5 | Windows/Wine container tests |
 | #6.13 Avalonia/Uno | 3.1, 3.2 | Cross-platform PoC |
 | #6.14 Event Sourcing | 3.4 | ClientLayoutEventStore |
 | #6.15 Plugin Architecture | 3.3, 3.6 | IPlugin + SDK |
 | #7.1–#7.6 Immediate next steps | 1.1–1.7 | All Phase 1 items |
+| #H1 CycleNextClient allocs | 1.5 | BenchmarkDotNet CycleNextClient |
+| #H2 Timer CPU idle | 2.2 (spike) | Reactive streams spike |
+| #H3 DWM handle limit | 2.4 (spike) | Pool spike |
+| #H4 GDI leaks | 1.3, 1.5 | SafeHandle + Benchmark GetStaticThumbnail |
+| #H5 SPI_SETANIMATION | 1.3 | WindowManager cleanup |
+| #H6 Virtualization benefit | 2.3 (spike) | Virtualization spike |
 
 ---
 
