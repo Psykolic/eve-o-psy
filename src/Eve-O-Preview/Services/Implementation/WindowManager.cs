@@ -364,30 +364,27 @@ namespace EveOPreview.Services.Implementation
 				}
 				finally
 				{
-					// Attempt to restore oldBitmap only if selection succeeded and wasn't already restored
-					if (selectSucceeded)
-					{
-						Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
-					}
-
-					// Nested finally: DeleteDC runs regardless of restore outcome
+					// Always attempt every native cleanup operation
 					try
 					{
-					}
-					finally
-					{
-						Gdi32NativeMethods.DeleteDC(destContext);
-					}
-
-					// Nested finally: DeleteObject runs after DC is destroyed
-					try
-					{
-					}
-					finally
-					{
-						if (bitmap != IntPtr.Zero)
+						if (selectSucceeded)
 						{
-							Gdi32NativeMethods.DeleteObject(bitmap);
+							Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
+						}
+					}
+					finally
+					{
+						try
+						{
+							// Delete the DC before deleting the bitmap if restoration failed
+							Gdi32NativeMethods.DeleteDC(destContext);
+						}
+						finally
+						{
+							if (bitmap != IntPtr.Zero)
+							{
+								Gdi32NativeMethods.DeleteObject(bitmap);
+							}
 						}
 					}
 				}
