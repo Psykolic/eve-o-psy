@@ -295,33 +295,107 @@ namespace EveOPreview.Services.Implementation
 		public Image GetStaticThumbnail(IntPtr source)
 		{
 			var sourceContext = User32NativeMethods.GetDC(source);
-
-			User32NativeMethods.GetClientRect(source, out RECT windowRect);
-
-			var width = windowRect.Right - windowRect.Left;
-			var height = windowRect.Bottom - windowRect.Top;
-
-			// Check if there is anything to make thumbnail of
-			if ((width < WINDOW_SIZE_THRESHOLD) || (height < WINDOW_SIZE_THRESHOLD))
+			if (sourceContext == IntPtr.Zero)
 			{
-                User32NativeMethods.ReleaseDC(source, sourceContext);
-
-                return null;
+				return null;
 			}
 
-			var destContext = Gdi32NativeMethods.CreateCompatibleDC(sourceContext);
-			var bitmap = Gdi32NativeMethods.CreateCompatibleBitmap(sourceContext, width, height);
+			try
+			{
+				RECT windowRect;
+				if (!User32NativeMethods.GetClientRect(source, out windowRect))
+				{
+					return null;
+				}
 
-			var oldBitmap = Gdi32NativeMethods.SelectObject(destContext, bitmap);
-			Gdi32NativeMethods.BitBlt(destContext, 0, 0, width, height, sourceContext, 0, 0, Gdi32NativeMethods.SRCCOPY);
-			Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
-			Gdi32NativeMethods.DeleteDC(destContext);
-			User32NativeMethods.ReleaseDC(source, sourceContext);
+				var width = windowRect.Right - windowRect.Left;
+				var height = windowRect.Bottom - windowRect.Top;
 
-			Image image = Image.FromHbitmap(bitmap);
-			Gdi32NativeMethods.DeleteObject(bitmap);
+				// Check if there is anything to make thumbnail of
+				if ((width < WINDOW_SIZE_THRESHOLD) || (height < WINDOW_SIZE_THRESHOLD))
+				{
+					return null;
+				}
 
-			return image;
+				var destContext = Gdi32NativeMethods.CreateCompatibleDC(sourceContext);
+				if (destContext == IntPtr.Zero)
+				{
+					return null;
+				}
+
+				var bitmap = IntPtr.Zero;
+				var oldBitmap = IntPtr.Zero;
+				bool selectSucceeded = false;
+
+				try
+				{
+					bitmap = Gdi32NativeMethods.CreateCompatibleBitmap(sourceContext, width, height);
+					if (bitmap == IntPtr.Zero)
+					{
+						return null;
+					}
+
+					oldBitmap = Gdi32NativeMethods.SelectObject(destContext, bitmap);
+					if (oldBitmap == IntPtr.Zero || oldBitmap == new IntPtr(-1))
+					{
+						return null;
+					}
+					selectSucceeded = true;
+
+					if (!Gdi32NativeMethods.BitBlt(destContext, 0, 0, width, height, sourceContext, 0, 0, Gdi32NativeMethods.SRCCOPY))
+					{
+						return null;
+					}
+
+					// BitBlt succeeded: restore oldBitmap BEFORE Image.FromHbitmap
+					var restoreResult = Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
+					if (restoreResult == IntPtr.Zero || restoreResult == new IntPtr(-1))
+					{
+						// Restoration failed: bitmap still selected in destContext
+						// selectSucceeded remains true; finally will handle cleanup with DC-first order
+						return null;
+					}
+
+					// Restoration succeeded: bitmap no longer selected in destContext
+					selectSucceeded = false; // Prevent finally from restoring again
+
+					Image image = Image.FromHbitmap(bitmap);
+					return image;
+				}
+				finally
+				{
+					// Attempt to restore oldBitmap only if selection succeeded and wasn't already restored
+					if (selectSucceeded)
+					{
+						Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
+					}
+
+					// Nested finally: DeleteDC runs regardless of restore outcome
+					try
+					{
+					}
+					finally
+					{
+						Gdi32NativeMethods.DeleteDC(destContext);
+					}
+
+					// Nested finally: DeleteObject runs after DC is destroyed
+					try
+					{
+					}
+					finally
+					{
+						if (bitmap != IntPtr.Zero)
+						{
+							Gdi32NativeMethods.DeleteObject(bitmap);
+						}
+					}
+				}
+			}
+			finally
+			{
+				User32NativeMethods.ReleaseDC(source, sourceContext);
+			}
 		}
 	}
 }
