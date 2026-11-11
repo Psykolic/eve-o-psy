@@ -15,15 +15,15 @@ Builds on: #12 (async audit), #14 (6+1 performance audit). Independent of Draft 
 
 `TaskScheduler.FromCurrentSynchronizationContext()` is evaluated **when `ContinueWith` is registered** — normally on the UI thread inside this event handler — not inside the `Task.Run` delegate. It was kept unchanged. All UI-only work (`SwitchActiveClient`, `UpdateClientLayouts`, `RefreshThumbnails`) remains marshaled to the UI thread via that scheduler. Audit #12's claim that the scheduler "captures the thread-pool context" is not repeated here.
 
-## Verified behavior (covered by regression tests)
+## Behavior reviewed against source and regression tests
 
-The following were verified by reading the code and by the added unit tests. Tests use a queued `SynchronizationContext` to drive the UI continuation deterministically — no WPF dispatcher is required for these paths.
+The following describes source behavior; five tests cover the cases listed below except cancellation. Tests use a queued `SynchronizationContext` to drive the UI continuation deterministically — no WPF dispatcher is required for these paths.
 
 - **Unknown id**: `ThumbnailActivated` returns silently at entry; `ActivateWindow` is never called and no UI continuation is queued. Ordinary click-to-activate for known ids is unchanged.
 - **View removed before continuation**: continuation re-checks `_thumbnailViews.TryGetValue(id, ...)`; on failure it returns without calling `SwitchActiveClient` / `UpdateClientLayouts` / `RefreshThumbnails` and without touching the stale view.
 - **View replaced before continuation**: re-check also compares instance identity (`ReferenceEquals`) against the view captured at invocation time; a replacement registered under the same handle is not treated as the same client and is not mutated.
 - **Faulted activation** (`ActivateWindow` throws): the continuation observes the exception (`task.Exception` is read and its base message is written via `Debug.WriteLine`) and returns early — no apparently successful UI state transition occurs (`_activeClient` unchanged, `RefreshThumbnails` not run).
-- **Cancelled activation**: continuation returns early without mutating state.
+- **Cancelled activation**: continuation returns early without mutating state (source review only; no dedicated test).
 - **Successful activation**: client becomes the active client (`GetActiveClient()` returns the view) and `RefreshThumbnails` runs (observed via `GetForegroundWindowHandle` being called). UI work stays on the UI continuation.
 
 ### Error-observation rationale
@@ -34,7 +34,7 @@ The project has **no shared logging abstraction**. `WindowManager` keeps a priva
 
 - Whether `ActivateWindow` itself can intermittently fail on real Windows 11 with 6+1 clients (DWM/`SetForegroundWindow` focus-stealing rules). The faulted path is now handled; the frequency is unknown and requires manual 6+1 validation.
 - Whether a view object can actually be observed in a disposed state by the continuation in production (the fix treats both "removed" and "replaced" as terminal; true disposal races depend on `ThumbnailView.Dispose` semantics, not audited here).
-- Interaction with Draft PR #9 (TM-01): #9 touches neighboring code (refresh try/finally, `TryRemoveThumbnail`, callback detach, null hotkey handling). This PR intentionally does **not** implement any TM-01 items. A rebase conflict near `ThumbnailActivated`/removal paths is possible and expected; resolution should keep both fixes (TM-04's recheck + TM-01's removal hardening).
+- Interaction with Draft PR #9 (TM-01): see [the follow-up compatibility review](tm-04-pr16-validation-review.md). Its production hunks and TM-04 compose in either order against the common base after line-ending normalization; a combined build and real lifecycle validation remain pending.
 - GDI/WindowManager behavior (PRs #3–#5) is untouched.
 
 ## What this does NOT fix
@@ -47,7 +47,7 @@ The project has **no shared logging abstraction**. `WindowManager` keeps a priva
 
 - `src/EveO.Tests/Services/ThumbnailManagerActivationTests.cs` — 5 tests:
   unknown id, view removed before continuation, view replaced before continuation, faulted activation, successful activation.
-- Tests target `net8.0-windows8.0` and must run on Windows (the runner project uses WinForms/WPF). **They could not be executed on the Linux development machine; no build or test run is claimed.** Windows CI / a Windows build agent must compile and run them.
+- Tests target `net8.0-windows8.0` and must run on Windows (WinForms/WPF). Original Windows CI run [43092665611](https://github.com/Psykolic/eve-o-custom/actions/runs/43092665611) passed build and all 12 tests (zero failures/skips). Follow-up nullable-only changes and current CI evidence are tracked in [the validation review](tm-04-pr16-validation-review.md). No local execution or manual 6+1 validation is claimed.
 - Known limitation: tests reflect on private `ThumbnailManager._thumbnailViews` and `ThumbnailActivated`. Renaming either breaks the tests (they fail loudly with a descriptive message).
 - `RefreshThumbnails` is short-circuited in tests via `GetForegroundWindowHandle() == IntPtr.Zero`; real refresh behavior over multiple views is not exercised by these unit tests.
 
