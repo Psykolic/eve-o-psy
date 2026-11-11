@@ -158,7 +158,7 @@ def invoke_claude(worktree, issue, logfile):
         "--disallowedTools", "Bash,WebFetch,WebSearch,Agent,mcp__*",
         "--append-system-prompt-file", str(policy),
         "--settings", json.dumps(settings),
-        "--max-turns", "18", "--max-budget-usd", "5.00",
+        "--max-turns", "40", "--max-budget-usd", "5.00",
         "--output-format", "text", "--no-session-persistence",
     ]
     logfile.parent.mkdir(parents=True, exist_ok=True)
