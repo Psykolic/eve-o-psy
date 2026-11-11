@@ -1,0 +1,16 @@
+[Unit]
+Description=EVE-O Claude Code autonomous GitHub issue worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projetos/eve-o-custom
+ExecStart=/usr/bin/python3 %h/eveo-claude-autonomy/scripts/claude-autonomy/runner.py
+TimeoutStartSec=75min
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
