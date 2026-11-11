@@ -4,11 +4,13 @@ The Linux host can run Claude Code without ChatGPT or Codex in the loop. The loc
 
 **No automatic merging, publishing, permission modifications, or other repository administration.** The script creates no issue and has no self-initiated product roadmap. User/maintainer approval is still required to choose issues and merge results. Do not claim 100% unattended end-to-end software delivery.
 
-## Dependencies and initial authentication (one time, Linux)
+## Dependencies and provider configuration (one time, Linux)
 
 - Python 3.10+, `git`, `gh`, `claude`. The machine must access the private repo `Psykolic/eve-o-custom`.
 - Authenticate as the repository owner (or a scoped automation account with permissions limited to writing branches and PRs): `gh auth login` and verify `gh auth status`.
-- Authenticate Claude Code separately: `claude auth login`, `claude auth status`, and `claude doctor`. Provider accounts and API usage limits are separate from ChatGPT.
+- **The Claude Code CLI can use an Anthropic-compatible gateway such as OpenRouter without an Anthropic login.** In this case, `claude auth status` may report `loggedIn: false` even though `claude -p` works. The runner never requires Anthropic OAuth authentication.
+- **OpenRouter:** follow the [official Claude Code integration](https://openrouter.ai/docs/guides/coding-agents/claude-code-integration). Its normal environment is `ANTHROPIC_BASE_URL=https://openrouter.ai/api`, `ANTHROPIC_AUTH_TOKEN` set to the OpenRouter API key, and `ANTHROPIC_API_KEY` explicitly set to an empty string. Do not put credentials in this repository, issues, PRs or logs. Anthropic-hosted sessions can use their ordinary login instead.
+- Validate the **actual provider** with `python3 ~/eveo-claude-autonomy/scripts/claude-autonomy/runner.py --check-provider` (small real API request) before issuing work. `--dry-run` only inspects the approved GitHub task queue and does not test the Claude model.
 - Use a **dedicated unprivileged Linux account or sandbox** with no production credentials. Restrict access to GH credentials; the worktree alone is not a security boundary.
 - Avoid `--dangerously-skip-permissions`; the runner uses `dontAsk`, approved edit/read tools, explicit denials for Bash/network/subagents and workdir restrictions. Check `claude --help` because flags and model/provider access can vary by installed version. Project/user settings or mods can affect effective permissions.
 - Verify the repo root exists at `~/projetos/eve-o-custom`; override using `EVEO_SOURCE_REPO` if needed. The script itself is checked out from the development branch separately and does not have to be merged to `main` for a pilot.
@@ -28,7 +30,13 @@ Create a GitHub issue authored by `Psykolic`, with a narrow task touching produc
 gh label create claude-ready --repo Psykolic/eve-o-custom --color 2EA44F --description "Owner-approved autonomous Claude task"
 ```
 
-If the label already exists, skip creation. Before enabling the timer, run **dry-run**:
+If the label already exists, skip creation. Check the configured Claude endpoint first (this sends one small paid API call):
+
+```bash
+python3 ~/eveo-claude-autonomy/scripts/claude-autonomy/runner.py --check-provider
+```
+
+Then, before enabling the timer, run **dry-run**:
 
 ```bash
 python3 ~/eveo-claude-autonomy/scripts/claude-autonomy/runner.py --dry-run
@@ -74,6 +82,8 @@ systemctl --user disable --now eveo-claude-agent.timer
 - This v1 provides bounded task execution, **not** a continuously self-planning AI organization. It does not discover and label issues, auto-fix CI, or autonomously approve its PRs.
 - Windows-specific build/tests and 6+1 UI behavior cannot be confirmed solely from a Linux host; GitHub Actions and manual Windows test sessions remain mandatory.
 - Claude CLI may not support specific flags, models or read/write sandbox settings in older versions. Confirm on the dedicated host before enabling the timer.
+- The runner inherits the Claude process environment; an interactive shell and a systemd user service may load **different** variables. If OpenRouter credentials are defined only in `~/.bashrc`, the systemd service may not receive them. Configure the user service environment securely through a non-versioned credential mechanism and test one manual service invocation **before** enabling the timer. Do not paste secrets into systemd unit files committed to Git.
+- OpenRouter offers an Anthropic Messages API-compatible gateway, but not every non-Anthropic model implements all Claude Code capabilities. Pin and test a compatible model. The `--check-provider` probe only proves one simple request, not tool-use support, build correctness or full agent autonomy.
 - For stronger isolation, run Claude in a container/VM under a different Unix user from the GitHub publishing controller, with a separate credential boundary; path checks alone cannot guarantee containment.
 - PR #8 (skills) and PRs #3–5 (GDI) remain untouched. Until the shared skills are merged, the runner enforces its local POLICY.md rather than depending on skill discovery.
 - Limit costs: the `--max-budget-usd 5.00` CLI cap estimates usage and can overshoot; verify Anthropic/provider billing separately.
