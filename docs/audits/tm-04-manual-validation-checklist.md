@@ -5,9 +5,8 @@
 **Commits incluídos:** 
 - `6a568a1` — fix(TM-04): harden thumbnail activation against stale clients
 - `059f3e5` — test(TM-04): correct activation harness nullable annotations
-- **[NOVO]** Port GDI cleanup fixes from `feature/phase-1-gdi-safety` (commits `e27de2c` + `8b97899`)
-- **[NOVO]** Add `IsActive` guard in `ThumbnailActivated` continuation
-- **[NOVO]** Add `ThumbnailActivated_CancelledActivation_SkipsStateTransition` test
+- `69c15be` — fix(TM-04): harden thumbnail activation and add GDI cleanup
+- `d669774` — **fix(TM-04): lifecycle, cancellation, and ownership fixes per Codex review**
 
 ---
 
@@ -53,7 +52,8 @@
 | **R1** | Click em thumbnail de cliente já fechado | Fechar cliente via Task Manager, clicar rapidamente sua thumbnail antes do refresh | Sem crash, sem exceção, thumbnail desaparece no próximo ciclo |
 | **R2** | Click rápido A→B→A (mesmo handle reutilizado) | Fechar A, reabrir A (mesmo handle possível), clicar thumbnail A antiga/nova | Ativação correta da view atual; view antiga não muta estado |
 | **R3** | `ActivateWindow` falha (simulado) | Requer build Debug + debugger; breakpoint em `ActivateWindow` + throw manual | Debug output: `ThumbnailActivated: ActivateWindow failed...`; sem ghost active client |
-| **R4** | Cancelamento durante shutdown | Fechar EVE-O enquanto clica thumbnails rapidamente | Sem crash; tasks canceladas não mutam estado |
+| **R4** | View oculta mas válida ativada | Minimizar cliente, clicar thumbnail | Ativação completa (IsActive=false mas IsDisposed=false permite) |
+| **R5** | View descartada (IsDisposed=true) | Fechar cliente, callback já enfileirado roda antes do detach TM-01 | Sem mutação de estado; continuação aborta no guard IsDisposed |
 
 ---
 
@@ -63,7 +63,7 @@
 |----|---------|-------------|--------------|
 | **G1** | Stress 1000+ capturas estáticas | Script automatizado ou manual: capturar thumbnail estático em loop | Task Manager / `gdi.exe` handles estáveis; sem vazamento HDC/HBITMAP |
 | **G2** | Cliente fecha durante captura | Fechar cliente EVE enquanto `GetStaticThumbnail` roda (race) | Exceção capturada, handles liberados, app continua |
-| **G3** | DWM indisponível (troca usuário) | Trocar usuário Windows durante captura | `COMException` capturada, handles liberados |
+| **G3** | DWM indisponível (troca usuário) | Trocar usuário Windows durante captura DWM (LiveThumbnail) | `COMException` capturada, handles liberados |
 | **G4** | Fonte inválida (handle 0) | Chamar `GetStaticThumbnail(IntPtr.Zero)` | Retorna `null` sem crash, sem leak |
 
 ---
@@ -86,25 +86,46 @@
 | Item | Descrição | Mitigação |
 |------|-----------|-----------|
 | **Build Windows** | Não compilado/testado localmente | CI Windows deve passar |
-| **Testes TM-04** | 5 testes existentes + 1 novo; requerem `net8.0-windows` + WPF/WinForms | Executar em Windows CI / agent Windows |
-| **Testes TM-01** | 3 testes em `ThumbnailManagerStabilityTests.cs`; integração não testada | Build combinado + execução 8 testes |
+| **Testes TM-04** | 8 testes (5 originais + hidden + disposed + faulted + cancelled-doc); requerem `net8.0-windows` + WPF/WinForms | Executar em Windows CI / agent Windows |
+| **Testes TM-01** | 3 testes em `ThumbnailManagerStabilityTests.cs` (branch separada); integração não testada | Build combinado + execução 8+3=11 testes |
 | **DWM/SetForegroundWindow** | Focus-stealing rules Windows 11 não testadas | Validação manual M3, R3 |
 | **GDI real** | Stress 1000+ capturas não executado | Validação manual G1–G4 |
 | **Multi-monitor DPI** | Escala diferente entre monitores não testada | Validação manual M6 |
-| **CancellationToken** | Não propagado para `ActivateWindow` (item futuro) | Teste atual simula via exceção |
+| **CancellationToken** | Não propagado para `ActivateWindow` + `Task.Run` (item futuro) | Teste atual documenta comportamento Faulted; IsCanned branch documentado |
+| **Política ordenação A/B** | Não implementada; última solicitação pode não vencer | Documentado; decisão do mantenedor necessária |
+
+---
+
+## Política de Ordenação A/B (Documentada - NÃO Implementada)
+
+**Estado atual:** Não há serialização/geração de solicitações. Duas ativações concorrentes A e B (ambas válidas, ambas no dicionário) podem completar em qualquer ordem.
+
+**Comportamento observado:**
+- Continuation que completa primeiro chama `SwitchActiveClient` e `RefreshThumbnails`
+- Continuation que completa depois vê `currentView.IsDisposed == false` e `ReferenceEquals == true`, então **também** muta estado
+- Resultado: "última continuação a completar vence" (não necessariamente "último clique")
+
+**Opções (requer decisão do mantenedor):**
+1. **Last-click-wins:** Adicionar `requestGeneration` (int/long) capturado na UI thread, passado ao worker, revalidado no continuation. Só commita se geração == atual.
+2. **First-completes-wins:** Comportamento atual (não determinístico devido a thread pool).
+3. **Queue/serialize:** Fila de ativações em UI thread; processa uma por vez.
+
+**Decisão pendente:** Sem autorização para implementar. Documentado para revisão.
 
 ---
 
 ## Critérios de "Go/No-Go" para Merge
 
-| Critério | Obrigatório? |
-|----------|-------------|
-| CI Windows: build + **todos os 8 testes passam** (5 TM-04 + 3 TM-01) | ✅ Sim |
-| Zero falhas/skips no CI | ✅ Sim |
-| Validação manual M1–M9 **todos Passed** | ✅ Sim |
-| Validação GDI G1–G4 **todos Passed** | ✅ Sim |
-| Zero "Blocked" sem plano de resolução | ✅ Sim |
-| Política de ordenação A/B concorrente decidida/documentada | ✅ Sim |
+| Critério | Obrigatório? | Status |
+|----------|-------------|--------|
+| CI Windows: build + **todos os 8 testes TM-04 passam** | ✅ Sim | ⏳ Aguardando Actions |
+| CI Windows: **3 testes TM-01 passam** (merge combinado) | ✅ Sim | ⏳ Merge descartável necessário |
+| Zero falhas/skips no CI | ✅ Sim | ⏳ |
+| Validação manual M1–M9 **todos Passed** | ✅ Sim | ☐ Pendente |
+| Validação GDI G1–G4 **todos Passed** | ✅ Sim | ☐ Pendente |
+| Validação Race R1–R5 **todos Passed** | ✅ Sim | ☐ Pendente |
+| Zero "Blocked" sem plano de resolução | ✅ Sim | ⏳ |
+| Política de ordenação A/B decidida/documentada | ✅ Sim | 📝 Documentada, não implementada |
 
 > **Não autorizar merge** com casos pendentes ou política de ordenação indefinida.
 
@@ -112,8 +133,10 @@
 
 ## Próximos Passos Pós-Validação
 
-1. **Resolver upload TRX failure** no CI (run 43094658870)
+1. **Resolver upload TRX failure** no CI (run 43094658870 — resolvido no run atual)
 2. **Logger compartilhado** — substituir `Debug.WriteLine` por abstração injetável
-3. **CancellationToken** propagado para `ActivateWindow` + `Task.Run`
+3. **CancellationToken** propagado para `ActivateWindow` + `Task.Run` (cobertura real IsCanceled)
 4. **Auditoria completa** pares `DisableViewEvents`/`EnableViewEvents` (4+ restantes)
 5. **Extrair `ThumbnailActivated`** para classe testável (remover reflection dos testes)
+6. **Testes GDI fault injection** com fronteira nativa substituível
+7. **Merge combinado TM-01 + TM-04** + execução 11 testes
