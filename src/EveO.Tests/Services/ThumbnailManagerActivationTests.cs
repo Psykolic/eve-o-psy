@@ -31,25 +31,25 @@ namespace EveO.Tests.Services
         // so the test can invoke the captured continuation explicitly and deterministically.
         private sealed class QueuedSynchronizationContext : SynchronizationContext
         {
-            private readonly BlockingCollection<KeyValuePair<SendOrPostCallback, object>> _queue =
-                new BlockingCollection<KeyValuePair<SendOrPostCallback, object>>();
+            private readonly BlockingCollection<KeyValuePair<SendOrPostCallback, object?>> _queue =
+                new BlockingCollection<KeyValuePair<SendOrPostCallback, object?>>();
 
-            public override void Post(SendOrPostCallback d, object state)
+            public override void Post(SendOrPostCallback d, object? state)
             {
-                _queue.Add(new KeyValuePair<SendOrPostCallback, object>(d, state));
+                _queue.Add(new KeyValuePair<SendOrPostCallback, object?>(d, state));
             }
 
-            public override void Send(SendOrPostCallback d, object state)
+            public override void Send(SendOrPostCallback d, object? state)
             {
                 d(state);
             }
 
-            public bool TryDequeue(out KeyValuePair<SendOrPostCallback, object> item)
+            public bool TryDequeue(out KeyValuePair<SendOrPostCallback, object?> item)
             {
                 return _queue.TryTake(out item, ContinuationTimeout);
             }
 
-            public bool TryDequeueNoWait(out KeyValuePair<SendOrPostCallback, object> item)
+            public bool TryDequeueNoWait(out KeyValuePair<SendOrPostCallback, object?> item)
             {
                 return _queue.TryTake(out item, TimeSpan.FromMilliseconds(250));
             }
@@ -123,7 +123,7 @@ namespace EveO.Tests.Services
                 throw new InvalidOperationException("ThumbnailManager._thumbnailViews field was not found (renamed?).");
             }
 
-            return (Dictionary<IntPtr, IThumbnailView>)field.GetValue(manager);
+            return (Dictionary<IntPtr, IThumbnailView>)field.GetValue(manager)!;
         }
 
         private static void InvokeThumbnailActivated(ThumbnailManager manager, IntPtr id)
