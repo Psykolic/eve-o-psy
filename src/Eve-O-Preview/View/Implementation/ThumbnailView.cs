@@ -33,7 +33,7 @@ namespace EveOPreview.View
 		private bool _isCustomMouseModeActive;
 
 		private double _opacity;
-		 
+
 		private DateTime _suppressResizeEventsTimestamp;
 		private Size _baseZoomSize;
 		private Point _baseZoomLocation;
@@ -47,6 +47,11 @@ namespace EveOPreview.View
 		private Lazy<Color> _preventPreviewColor;
 		private Lazy<bool> _preventPreviews;
 		private IThumbnailManager _thumbnailManager;
+
+		// Lifecycle tracking: distinct from IsActive (visibility).
+		// IsDisposed = true means the view has been closed and should not be used.
+		// IsActive = false means the view is hidden but still valid (e.g., minimized, not on top).
+		private bool _isDisposed;
 		#endregion
 
 		protected ThumbnailView(IWindowManager windowManager, IThumbnailConfiguration config, IThumbnailManager thumbnailManager)
@@ -217,11 +222,14 @@ namespace EveOPreview.View
 			base.Hide();
 		}
 
+		public bool IsDisposed => _isDisposed;
+
 		public new virtual void Close()
 		{
 			this.SuppressResizeEvent();
 
 			this.IsActive = false;
+			this._isDisposed = true;
 			this._overlay.Close();
 			base.Close();
 		}

@@ -684,12 +684,22 @@ namespace EveOPreview.Services
 				return;
 			}
 
+			// Capture required values on UI thread BEFORE scheduling background work.
+			// Worker must not access the view (lifecycle/ownership safety).
+			var capturedId = view.Id;
+			var capturedTitle = view.Title;
+#if LINUX
+			var capturedAnimation = view.Title; // animation param is title on LINUX
+#else
+			var capturedAnimation = this._configuration.WindowsAnimationStyle;
+#endif
+
 			Task.Run(() =>
 				{
 #if LINUX
-					this._windowManager.ActivateWindow(view.Id, view.Title);
+					this._windowManager.ActivateWindow(capturedId, capturedAnimation);
 #else
-					this._windowManager.ActivateWindow(view.Id, this._configuration.WindowsAnimationStyle);
+					this._windowManager.ActivateWindow(capturedId, capturedAnimation);
 #endif
 				})
 				// FromCurrentSynchronizationContext is evaluated here, at ContinueWith registration time
@@ -723,15 +733,16 @@ namespace EveOPreview.Services
 						return;
 					}
 
-					// Additional guard: the view may have been closed (IsActive = false) while still
+					// Additional guard: the view may have been closed (IsDisposed = true) while still
 					// registered in the dictionary (e.g., callback already queued before TM-01 detach).
-					// Skip activation to avoid mutating state with a closed view.
-					if (!currentView.IsActive)
+					// Skip activation to avoid mutating state with a disposed view.
+					if (currentView.IsDisposed)
 					{
 						return;
 					}
 
-					this.SwitchActiveClient(currentView.Id, currentView.Title);
+					// Use captured values; currentView verified to be same instance as original view.
+					this.SwitchActiveClient(capturedId, capturedTitle);
 					this.UpdateClientLayouts();
 					this.RefreshThumbnails();
 				}, TaskScheduler.FromCurrentSynchronizationContext());
