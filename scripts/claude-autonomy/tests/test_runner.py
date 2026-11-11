@@ -53,6 +53,37 @@ class RunnerSafetyTests(unittest.TestCase):
             with self.assertRaises(module.Blocked):
                 module.check_scope(root, paths)
 
+    def test_normalizes_only_audit_markdown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audit = root / "docs/audits/report.md"
+            audit.parent.mkdir(parents=True)
+            audit.write_bytes(b"# Audit  \nEvidence: value \t\r\nNo changes\n")
+            source = root / "src/EveO.Tests/Test.cs"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"// keep whitespace  \n")
+            module.normalize_audit_markdown(root, [
+                "docs/audits/report.md", "src/EveO.Tests/Test.cs"
+            ])
+            self.assertEqual(b"# Audit\nEvidence: value\r\nNo changes\n",
+                             audit.read_bytes())
+            self.assertEqual(b"// keep whitespace  \n", source.read_bytes())
+
+    def test_normalizer_rejects_symlink_and_binary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root / "docs/audits"
+            directory.mkdir(parents=True)
+            target = root / "outside.md"
+            target.write_text("outside  \n")
+            (directory / "link.md").symlink_to(target)
+            with self.assertRaises(module.Blocked):
+                module.normalize_audit_markdown(root, ["docs/audits/link.md"])
+            self.assertEqual("outside  \n", target.read_text())
+            (directory / "binary.md").write_bytes(b"\x00  \n")
+            with self.assertRaises(module.Blocked):
+                module.normalize_audit_markdown(root, ["docs/audits/binary.md"])
+
     def test_gateway_probe_does_not_require_anthropic_login(self):
         with patch.object(module, "run",
                           return_value=CompletedProcess(["claude"], 0, "OK\n", "")) as mocked:
