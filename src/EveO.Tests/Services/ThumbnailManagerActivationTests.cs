@@ -285,6 +285,43 @@ namespace EveO.Tests.Services
         }
 
         [Fact]
+        public void ThumbnailActivated_CancelledActivation_SkipsStateTransition()
+        {
+            var harness = new TestHarness();
+            var id = new IntPtr(0x5555);
+            var view = CreateView(id, "EVE - Alpha");
+            harness.AddView(view.Object);
+
+            var entered = new ManualResetEventSlim(false);
+
+#if LINUX
+            harness.WindowManager.Setup(w => w.ActivateWindow(It.IsAny<IntPtr>(), It.IsAny<string>()))
+#else
+            harness.WindowManager.Setup(w => w.ActivateWindow(It.IsAny<IntPtr>(), It.IsAny<AnimationStyle>()))
+#endif
+                .Callback(() =>
+                {
+                    entered.Set();
+                    // Simulate cancellation by throwing OperationCanceledException
+                    throw new OperationCanceledException("Activation cancelled");
+                });
+
+            RunWithQueuedContext(context =>
+            {
+                InvokeThumbnailActivated(harness.Manager, id);
+
+                Assert.True(entered.Wait(ContinuationTimeout), "Background ActivateWindow was not started.");
+
+                InvokeContinuation(context);
+            });
+
+            // A cancelled activation must not perform the "successful" refresh/layout pass,
+            // and no client must be switched into the active state.
+            harness.WindowManager.Verify(w => w.GetForegroundWindowHandle(), Times.Never);
+            Assert.Null(harness.Manager.GetActiveClient());
+        }
+
+        [Fact]
         public void ThumbnailActivated_SuccessfulActivation_SwitchesActiveClient()
         {
             var harness = new TestHarness();

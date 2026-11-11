@@ -139,7 +139,7 @@ namespace EveOPreview.Services
 			IOrderedEnumerable<KeyValuePair<string, int>> clientOrder;
 			Dictionary<string, int> _cycleOrder = new Dictionary<string, int>(cycleOrder);
 
-			if ( _cycleOrder.Count == 0 ) 
+			if ( _cycleOrder.Count == 0 )
 			{
 				int order = 0;
 				foreach( var x in _thumbnailViews )
@@ -209,7 +209,7 @@ namespace EveOPreview.Services
 
 				if (_thumbnailViews.Any(x => x.Value.Title == t.Key && !x.Value.IsExcludedFromCycleGroup))
 				{
-					var ptr = t.Key.Equals(DEFAULT_CLIENT_TITLE) ? 
+					var ptr = t.Key.Equals(DEFAULT_CLIENT_TITLE) ?
 						(isForwards ? _thumbnailViews.OrderBy(x => x.Value.Id.ToInt64()) : _thumbnailViews.OrderByDescending(x => x.Value.Id.ToInt64())).FirstOrDefault(x => x.Value.Title == t.Key && ! x.Value.IsExcludedFromCycleGroup)
 						: _thumbnailViews.First(x => x.Value.Title == t.Key && !x.Value.IsExcludedFromCycleGroup);
 					SetActive(ptr);
@@ -537,7 +537,7 @@ namespace EveOPreview.Services
 				view.IsOverlayEnabled = this._configuration.ShowThumbnailOverlays;
 
 				view.SetHighlight(
-					this._configuration.EnableActiveClientHighlight && (view.Id == this._activeClient.Handle), 
+					this._configuration.EnableActiveClientHighlight && (view.Id == this._activeClient.Handle),
 					this._configuration.ActiveClientHighlightThickness);
 
 				if (!view.IsActive)
@@ -625,7 +625,7 @@ namespace EveOPreview.Services
 			{
 				this._windowManager.MinimizeWindow(this._activeClient.Handle, this._configuration.WindowsAnimationStyle, false);
 #if LINUX
-   			    this._windowManager.ActivateWindow(foregroundClientHandle, foregroundClientTitle);
+				this._windowManager.ActivateWindow(foregroundClientHandle, foregroundClientTitle);
 #else
 				this._windowManager.ActivateWindow(foregroundClientHandle, this._configuration.WindowsAnimationStyle);
 #endif
@@ -719,6 +719,14 @@ namespace EveOPreview.Services
 					// the same handle) while activation was in flight. Re-check that we still hold the same
 					// view instance before mutating UI/client state. Never touch a stale/disposed view.
 					if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView currentView) || !ReferenceEquals(currentView, view))
+					{
+						return;
+					}
+
+					// Additional guard: the view may have been closed (IsActive = false) while still
+					// registered in the dictionary (e.g., callback already queued before TM-01 detach).
+					// Skip activation to avoid mutating state with a closed view.
+					if (!currentView.IsActive)
 					{
 						return;
 					}
