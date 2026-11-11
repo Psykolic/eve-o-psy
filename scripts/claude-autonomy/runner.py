@@ -124,9 +124,9 @@ def normalize_audit_markdown(worktree, files):
         if path.is_symlink() or not path.is_file():
             raise Blocked("Unsafe audit Markdown path: " + name)
         data = path.read_bytes()
-        if b"\\0" in data:
+        if 0 in data:
             raise Blocked("Binary audit Markdown is disallowed: " + name)
-        normalized = re.sub(rb"[ \\t]+(?=\\r?$)", b"", data, flags=re.MULTILINE)
+        normalized = re.sub(rb"[ \t]+(?=\r?$)", b"", data, flags=re.MULTILINE)
         if normalized != data:
             path.write_bytes(normalized)
             print("Normalized trailing Markdown whitespace: " + name)
