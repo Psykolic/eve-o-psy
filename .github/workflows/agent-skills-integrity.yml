@@ -1,0 +1,31 @@
+name: Agent Skills Integrity
+
+on:
+  push:
+    paths:
+      - '.agents/skills/**'
+      - '.claude/skills/**'
+      - 'scripts/verify-agent-skills.ps1'
+      - '.gitattributes'
+      - '.github/workflows/agent-skills-integrity.yml'
+  pull_request:
+    paths:
+      - '.agents/skills/**'
+      - '.claude/skills/**'
+      - 'scripts/verify-agent-skills.ps1'
+      - '.gitattributes'
+      - '.github/workflows/agent-skills-integrity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify restricted YAML and identical skill pairs
+        shell: pwsh
+        run: ./scripts/verify-agent-skills.ps1
