@@ -28,6 +28,11 @@
     <ProjectReference Include="..\Eve-O-Preview\Eve-O-Preview.csproj" />
   </ItemGroup>
 
+  <!-- The original WindowManager has no fault-injection overload. -->
+  <ItemGroup Condition="'$(GdiStressBaseline)' == 'true'">
+    <Compile Remove="Windows/GdiFailureTests.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Moq" />

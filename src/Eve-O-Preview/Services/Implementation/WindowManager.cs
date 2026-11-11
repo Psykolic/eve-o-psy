@@ -292,9 +292,12 @@ namespace EveOPreview.Services.Implementation
 			return thumbnail;
 		}
 
-		public Image GetStaticThumbnail(IntPtr source)
+		public Image GetStaticThumbnail(IntPtr source) =>
+			GetStaticThumbnail(source, StaticThumbnailGdi.Instance);
+
+		internal static Image GetStaticThumbnail(IntPtr source, IStaticThumbnailGdi gdi)
 		{
-			var sourceContext = User32NativeMethods.GetDC(source);
+			var sourceContext = gdi.GetDC(source);
 			if (sourceContext == IntPtr.Zero)
 			{
 				return null;
@@ -303,7 +306,7 @@ namespace EveOPreview.Services.Implementation
 			try
 			{
 				RECT windowRect;
-				if (!User32NativeMethods.GetClientRect(source, out windowRect))
+				if (!gdi.GetClientRect(source, out windowRect))
 				{
 					return null;
 				}
@@ -317,7 +320,7 @@ namespace EveOPreview.Services.Implementation
 					return null;
 				}
 
-				var destContext = Gdi32NativeMethods.CreateCompatibleDC(sourceContext);
+				var destContext = gdi.CreateCompatibleDC(sourceContext);
 				if (destContext == IntPtr.Zero)
 				{
 					return null;
@@ -329,26 +332,26 @@ namespace EveOPreview.Services.Implementation
 
 				try
 				{
-					bitmap = Gdi32NativeMethods.CreateCompatibleBitmap(sourceContext, width, height);
+					bitmap = gdi.CreateCompatibleBitmap(sourceContext, width, height);
 					if (bitmap == IntPtr.Zero)
 					{
 						return null;
 					}
 
-					oldBitmap = Gdi32NativeMethods.SelectObject(destContext, bitmap);
+					oldBitmap = gdi.SelectObject(destContext, bitmap);
 					if (oldBitmap == IntPtr.Zero || oldBitmap == new IntPtr(-1))
 					{
 						return null;
 					}
 					selectSucceeded = true;
 
-					if (!Gdi32NativeMethods.BitBlt(destContext, 0, 0, width, height, sourceContext, 0, 0, Gdi32NativeMethods.SRCCOPY))
+					if (!gdi.BitBlt(destContext, width, height, sourceContext))
 					{
 						return null;
 					}
 
 					// BitBlt succeeded: restore oldBitmap BEFORE Image.FromHbitmap
-					var restoreResult = Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
+					var restoreResult = gdi.SelectObject(destContext, oldBitmap);
 					if (restoreResult == IntPtr.Zero || restoreResult == new IntPtr(-1))
 					{
 						// Restoration failed: bitmap still selected in destContext
@@ -359,7 +362,7 @@ namespace EveOPreview.Services.Implementation
 					// Restoration succeeded: bitmap no longer selected in destContext
 					selectSucceeded = false; // Prevent finally from restoring again
 
-					Image image = Image.FromHbitmap(bitmap);
+					Image image = gdi.FromHbitmap(bitmap);
 					return image;
 				}
 				finally
@@ -369,7 +372,7 @@ namespace EveOPreview.Services.Implementation
 					{
 						if (selectSucceeded)
 						{
-							Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
+							gdi.SelectObject(destContext, oldBitmap);
 						}
 					}
 					finally
@@ -377,13 +380,13 @@ namespace EveOPreview.Services.Implementation
 						try
 						{
 							// Delete the DC before deleting the bitmap if restoration failed
-							Gdi32NativeMethods.DeleteDC(destContext);
+							gdi.DeleteDC(destContext);
 						}
 						finally
 						{
 							if (bitmap != IntPtr.Zero)
 							{
-								Gdi32NativeMethods.DeleteObject(bitmap);
+								gdi.DeleteObject(bitmap);
 							}
 						}
 					}
@@ -391,7 +394,7 @@ namespace EveOPreview.Services.Implementation
 			}
 			finally
 			{
-				User32NativeMethods.ReleaseDC(source, sourceContext);
+				gdi.ReleaseDC(source, sourceContext);
 			}
 		}
 	}
