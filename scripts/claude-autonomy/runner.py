@@ -11,6 +11,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -105,6 +106,30 @@ def check_scope(worktree, files):
     if deleted > 250:
         raise Blocked("Too many deleted lines; manual inspection required")
     run(["git", "diff", "--check"], cwd=worktree)
+
+
+def normalize_audit_markdown(worktree, files):
+    """Remove only trailing spaces/tabs in approved audit Markdown reports.
+
+    Claude sometimes produces Markdown with whitespace that Git rejects.
+    Keep source code, tests and all other files untouched; full scope and
+    Git whitespace validation still run after normalization.
+    """
+    for name in files:
+        if not (name.startswith("docs/audits/") and name.endswith(".md")):
+            continue
+        if not permitted(name):
+            raise Blocked("Disallowed path: " + name)
+        path = worktree / name
+        if path.is_symlink() or not path.is_file():
+            raise Blocked("Unsafe audit Markdown path: " + name)
+        data = path.read_bytes()
+        if b"\\0" in data:
+            raise Blocked("Binary audit Markdown is disallowed: " + name)
+        normalized = re.sub(rb"[ \\t]+(?=\\r?$)", b"", data, flags=re.MULTILINE)
+        if normalized != data:
+            path.write_bytes(normalized)
+            print("Normalized trailing Markdown whitespace: " + name)
 
 
 def invoke_claude(worktree, issue, logfile):
@@ -241,6 +266,7 @@ def main():
         invoke_claude(worktree, issue, log)
 
         files = changed_paths(worktree)
+        normalize_audit_markdown(worktree, files)
         check_scope(worktree, files)
         if not files:
             print("No changes; no PR opened")
