@@ -1,0 +1,25 @@
+name: Claude Autonomy Safety
+
+on:
+  push:
+    branches:
+      - feature/claude-autonomy-runner-v1
+    paths:
+      - 'scripts/claude-autonomy/**'
+      - '.github/workflows/claude-autonomy-safety.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/claude-autonomy/**'
+      - '.github/workflows/claude-autonomy-safety.yml'
+
+jobs:
+  verify-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Python runner
+        run: python3 -m py_compile scripts/claude-autonomy/runner.py
+      - name: Execute safety tests without authentication
+        run: python3 -m unittest discover -s scripts/claude-autonomy/tests -v
