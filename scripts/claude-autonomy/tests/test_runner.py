@@ -4,6 +4,10 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
+from subprocess import CompletedProcess
+from contextlib import redirect_stdout
+import io
 
 RUNNER = Path(__file__).resolve().parents[1] / "runner.py"
 spec = importlib.util.spec_from_file_location("eveo_claude_runner", RUNNER)
@@ -48,6 +52,32 @@ class RunnerSafetyTests(unittest.TestCase):
             self.assertIn(".github/hook.yml", paths)
             with self.assertRaises(module.Blocked):
                 module.check_scope(root, paths)
+
+    def test_gateway_probe_does_not_require_anthropic_login(self):
+        with patch.object(module, "run",
+                          return_value=CompletedProcess(["claude"], 0, "OK\n", "")) as mocked:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                module.probe_provider(Path("/tmp"))
+            called = mocked.call_args.args[0]
+            self.assertEqual("claude", called[0])
+            self.assertIn("-p", called)
+            self.assertNotIn("auth", called)
+            self.assertIn("passed", output.getvalue())
+            self.assertNotIn("OK", output.getvalue())
+
+    def test_gateway_probe_blocks_nonzero_exit(self):
+        with patch.object(module, "run",
+                          return_value=CompletedProcess(["claude"], 1, "", "invalid token")):
+            with self.assertRaises(module.Blocked) as exc:
+                module.probe_provider(Path("/tmp"))
+            self.assertNotIn("invalid token", str(exc.exception))
+
+    def test_gateway_probe_blocks_empty_success(self):
+        with patch.object(module, "run",
+                          return_value=CompletedProcess(["claude"], 0, "", "")):
+            with self.assertRaises(module.Blocked):
+                module.probe_provider(Path("/tmp"))
 
     def test_rejects_symlinks_even_in_allowed_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
