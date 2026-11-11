@@ -1,0 +1,11 @@
+[Unit]
+Description=Check EVE-O approved Claude tasks every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00
+RandomizedDelaySec=2min
+Persistent=true
+Unit=eveo-claude-agent.service
+
+[Install]
+WantedBy=timers.target
