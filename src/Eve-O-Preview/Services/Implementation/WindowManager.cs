@@ -328,7 +328,7 @@ namespace EveOPreview.Services.Implementation
 
 				var bitmap = IntPtr.Zero;
 				var oldBitmap = IntPtr.Zero;
-				bool selectSucceeded = false;
+				bool bitmapSelected = false;
 
 				try
 				{
@@ -339,11 +339,11 @@ namespace EveOPreview.Services.Implementation
 					}
 
 					oldBitmap = gdi.SelectObject(destContext, bitmap);
-					if (oldBitmap == IntPtr.Zero || oldBitmap == new IntPtr(-1))
+					if (!SelectionSucceeded(oldBitmap))
 					{
 						return null;
 					}
-					selectSucceeded = true;
+					bitmapSelected = true;
 
 					if (!gdi.BitBlt(destContext, width, height, sourceContext))
 					{
@@ -352,41 +352,53 @@ namespace EveOPreview.Services.Implementation
 
 					// BitBlt succeeded: restore oldBitmap BEFORE Image.FromHbitmap
 					var restoreResult = gdi.SelectObject(destContext, oldBitmap);
-					if (restoreResult == IntPtr.Zero || restoreResult == new IntPtr(-1))
+					if (!SelectionSucceeded(restoreResult))
 					{
-						// Restoration failed: bitmap still selected in destContext
-						// selectSucceeded remains true; finally will handle cleanup with DC-first order
+						// Retry restoration during cleanup.
 						return null;
 					}
 
 					// Restoration succeeded: bitmap no longer selected in destContext
-					selectSucceeded = false; // Prevent finally from restoring again
+					bitmapSelected = false;
 
-					Image image = gdi.FromHbitmap(bitmap);
-					return image;
+					return gdi.FromHbitmap(bitmap);
 				}
 				finally
 				{
-					// Always attempt every native cleanup operation
+					// Keep cleaning up if restoring the original bitmap throws.
 					try
 					{
-						if (selectSucceeded)
+						if (bitmapSelected)
 						{
-							gdi.SelectObject(destContext, oldBitmap);
+							bitmapSelected = !SelectionSucceeded(gdi.SelectObject(destContext, oldBitmap));
 						}
 					}
 					finally
 					{
 						try
 						{
-							// Delete the DC before deleting the bitmap if restoration failed
-							gdi.DeleteDC(destContext);
+							// Deleting the DC deselects the bitmap if restoration failed.
+							if (gdi.DeleteDC(destContext))
+							{
+								bitmapSelected = false;
+							}
+							else
+							{
+								gdi.ReportCleanupFailure("DeleteDC", destContext);
+							}
 						}
 						finally
 						{
 							if (bitmap != IntPtr.Zero)
 							{
-								gdi.DeleteObject(bitmap);
+								if (bitmapSelected)
+								{
+									gdi.ReportCleanupFailure("DeleteObjectSkipped", bitmap);
+								}
+								else if (!gdi.DeleteObject(bitmap))
+								{
+									gdi.ReportCleanupFailure("DeleteObject", bitmap);
+								}
 							}
 						}
 					}
@@ -394,8 +406,13 @@ namespace EveOPreview.Services.Implementation
 			}
 			finally
 			{
-				gdi.ReleaseDC(source, sourceContext);
+				if (!gdi.ReleaseDC(source, sourceContext))
+				{
+					gdi.ReportCleanupFailure("ReleaseDC", sourceContext);
+				}
 			}
 		}
+
+		private static bool SelectionSucceeded(IntPtr result) => result != IntPtr.Zero && result != new IntPtr(-1);
 	}
 }
