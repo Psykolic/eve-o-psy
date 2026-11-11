@@ -675,7 +675,14 @@ namespace EveOPreview.Services
 
 		private void ThumbnailActivated(IntPtr id)
 		{
-			IThumbnailView view = this._thumbnailViews[id];
+			// A window can disappear (or be re-registered under the same handle) between the
+			// moment this event fires and the UI continuation runs. Rapid 6+1 switching makes
+			// unknown/stale ids a normal condition, not an error. Ordinary click-to-activate
+			// behavior is preserved: known ids activate as before.
+			if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView view))
+			{
+				return;
+			}
 
 			Task.Run(() =>
 				{
@@ -685,10 +692,38 @@ namespace EveOPreview.Services
 					this._windowManager.ActivateWindow(view.Id, this._configuration.WindowsAnimationStyle);
 #endif
 				})
+				// FromCurrentSynchronizationContext is evaluated here, at ContinueWith registration time
+				// (normally on the UI thread, where this event handler runs) - not inside the Task.Run
+				// delegate. Keeping it preserves marshaling of all UI-only work to the UI thread.
 				.ContinueWith((task) =>
 				{
 					// This code should be executed on UI thread
-					this.SwitchActiveClient(view.Id, view.Title);
+					if (task.IsCanceled)
+					{
+						// Activation was cancelled: do not mutate client/UI state.
+						return;
+					}
+
+					if (task.IsFaulted)
+					{
+						// Observe the exception so it does not remain unobserved, and skip the state
+						// transition - reporting a successful activation after a failed one would leave
+						// the UI and the _activeClient bookkeeping out of sync. The project has no shared
+						// logging abstraction (WindowManager keeps a private, LINUX-oriented file logger),
+						// so surface the failure via Debug output instead of silently swallowing it.
+						System.Diagnostics.Debug.WriteLine($"ThumbnailActivated: ActivateWindow failed for thumbnail {id}: {task.Exception?.GetBaseException().Message}");
+						return;
+					}
+
+					// The client window may have been closed (or replaced by a new view registered under
+					// the same handle) while activation was in flight. Re-check that we still hold the same
+					// view instance before mutating UI/client state. Never touch a stale/disposed view.
+					if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView currentView) || !ReferenceEquals(currentView, view))
+					{
+						return;
+					}
+
+					this.SwitchActiveClient(currentView.Id, currentView.Title);
 					this.UpdateClientLayouts();
 					this.RefreshThumbnails();
 				}, TaskScheduler.FromCurrentSynchronizationContext());
