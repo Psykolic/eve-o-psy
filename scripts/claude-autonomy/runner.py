@@ -2,7 +2,8 @@
 """Unattended, bounded Claude Code runner for approved GitHub issues.
 
 Claude edits an isolated worktree; this host controls Git and Draft PR creation.
-Requires Python >=3.10, git, authenticated gh, authenticated Claude Code.
+Requires Python >=3.10, git, authenticated gh, and a working Claude Code provider.
+An Anthropic login is NOT required when using an Anthropic-compatible gateway.
 """
 from __future__ import annotations
 
@@ -147,17 +148,50 @@ def invoke_claude(worktree, issue, logfile):
         raise Blocked(f"Claude exited {result.returncode}; inspect {logfile}")
 
 
+def probe_provider(workdir):
+    """Check the actual configured provider (Anthropic login OR gateway).
+
+    An Anthropic OAuth login check is insufficient for OpenRouter and other
+    compatible gateways. Do not print provider credentials or response text.
+    """
+    result = run(
+        ["claude", "-p", "Reply with exactly: OK", "--max-turns", "1",
+         "--output-format", "text", "--no-session-persistence"],
+        cwd=workdir, timeout=120, check=False)
+    if result.returncode:
+        raise Blocked(
+            "Claude's configured provider did not answer the one-turn probe "
+            f"(exit {result.returncode}). Verify ANTHROPIC_BASE_URL, "
+            "ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY and selected model "
+            "without printing credentials."
+        )
+    if not result.stdout.strip():
+        raise Blocked("Claude provider returned an empty response")
+    print("Claude provider probe passed (response body hidden).")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--issue", type=int, help="Only run this numbered approved issue")
     parser.add_argument("--dry-run", action="store_true", help="Inspect without writing")
+    parser.add_argument("--check-provider", action="store_true",
+                        help="Probe the configured Claude endpoint without touching GitHub")
     args = parser.parse_args()
     source = Path(os.environ.get("EVEO_SOURCE_REPO",
                   str(Path.home() / "projetos" / "eve-o-custom"))).expanduser()
     root = Path(os.environ.get("EVEO_WORK_ROOT",
                 str(Path.home() / "eveo-agent-workspaces"))).expanduser()
 
-    for tool in ("git", "gh", "claude"):
+    if shutil.which("claude") is None:
+        raise Blocked("Missing executable: claude")
+    if args.check_provider:
+        # A real request is a stronger authentication/compatibility test than
+        # 'claude auth status', which can report loggedIn=false on OpenRouter.
+        # This probe consumes a small amount of provider credit.
+        probe_provider(source if source.exists() else Path.home())
+        return 0
+
+    for tool in ("git", "gh"):
         if shutil.which(tool) is None:
             raise Blocked(f"Missing executable: {tool}")
     if not (source / ".git").exists():
@@ -165,7 +199,8 @@ def main():
     if args.issue is not None and args.issue <= 0:
         raise Blocked("Issue number must be positive")
     run(["gh", "auth", "status"], timeout=30)
-    run(["claude", "auth", "status"], timeout=30)
+    # Do NOT require 'claude auth status': OpenRouter and other Anthropic-
+    # compatible gateways legitimately use external bearer credentials.
 
     issue = eligible_issue(args.issue)
     if issue is None:
