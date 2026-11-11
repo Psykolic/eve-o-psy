@@ -25,7 +25,7 @@ Revisão dos patches completos nos SHAs acima, com a mesma base:
 | Ativação | Não altera ThumbnailActivated | Guarda ID, fault/cancel e identidade | Nenhuma alteração concorrente no mesmo método |
 | Testes | Três Facts em Windows/ThumbnailManagerStabilityTests.cs | Cinco Facts em Services/ThumbnailManagerActivationTests.cs | Arquivos distintos; execução conjunta ainda pendente |
 
-Os hunks de produção são distintos e não se sobrepõem na base comum; não foi identificado conflito textual por inspeção. Ambos apareciam individualmente mergeable com main na consulta inicial. Isso **não comprova** merge limpo entre os dois heads: não foi executado git merge-tree/rebase nem build combinado. Não foi realizado merge, nem alterado #9/main.
+Os hunks de produção são distintos e não se sobrepõem na base comum. Além da inspeção, a composição em memória dos patches completos, com normalização CRLF/LF e exigência de contexto exato e único para cada hunk, foi aplicada nas duas ordens (#9 depois #16 e #16 depois #9); ambas produziram texto idêntico. Essa verificação não compilou nem executou o resultado combinado. Ambos apareciam individualmente mergeable com main na consulta inicial. Isso **não comprova** merge limpo entre os dois heads: não foi executado git merge-tree/rebase nem build combinado. Não foi realizado merge, nem alterado #9/main.
 
 Não foi identificada incompatibilidade comportamental direta entre as duas correções. A remoção TM-01 reforça a condição esperada pela revalidação TM-04. Porém, a suite TM-04 retorna antes do corpo de refresh (foreground zero); não exercita o finally TM-01 nem a remoção real. Antes de integrar, executar uma combinação descartável dos SHAs, revisar eventual conflito preservando ambas as proteções e executar toda a suite (incluindo as três Facts TM-01 e cinco TM-04). Bloquear integração se houver conflito funcional ou falha; não resolver por escolha automática de um dos lados.
 
@@ -59,3 +59,8 @@ Preparar backup da configuração e ambiente seguro no jogo. Registrar versão/b
 Coletar vídeo com foco/destaque visíveis, timestamps, configuração sem dados sensíveis, Event Viewer e saída Debug se disponível. Uma falha real de ActivateWindow não deve ser induzida alterando produção; registrar ocorrência espontânea e correlacionar com o foco. A injeção de exceção pertence ao teste automatizado.
 
 Para cada caso preencher: executor, data, SHA, configuração, esperado, observado, Passed/Failed/Blocked, anexos e passos de reprodução. Em crash, estado fantasma ou foco incoerente persistente, interromper o cenário afetado, preservar evidência e registrar bloqueio no PR #16. Não autorizar merge com casos pendentes ou política de ordenação indefinida.
+
+## Acompanhamento de CI após correção
+
+- Run [43094658870](https://github.com/Psykolic/eve-o-custom/actions/runs/43094658870), head `059f3e5`: build Windows success e etapa de testes success observados; etapa de upload TRX marcada failure na consulta intermediária. Não equivale a pipeline aprovado. Log do job ainda indisponível (404); causa não confirmada. Nenhuma alteração de workflow realizada.
+- Run [43097408532](https://github.com/Psykolic/eve-o-custom/actions/runs/43097408532), head `582bc25`: enfileirado na consulta. Resultado final e contagem dos testes precisam ser confirmados no PR.
