@@ -36,6 +36,13 @@ public sealed class GdiFailureTests
         {
             Assert.Same(gdi.Error, Assert.Throws<InvalidOperationException>(
                 () => WindowManager.GetStaticThumbnail(Window, gdi)));
+
+            // Assert disposal before FakeGdi.Dispose can clean up the image.
+            if (failure is "DeleteDCThrows" or "DeleteObjectThrows" or "ReleaseDCThrows")
+            {
+                var abandoned = Assert.IsType<Bitmap>(gdi.Image);
+                Assert.Throws<ArgumentException>(() => abandoned.GetPixel(0, 0));
+            }
         }
         else
         {
