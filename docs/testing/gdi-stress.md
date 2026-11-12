@@ -38,4 +38,4 @@ O teste de recursos gráficos deve ser executado em uma sessão de desktop Windo
 
 A janela de teste é desenhada por GDI, não pelo motor gráfico do EVE. A aprovação do harness **não** implica que capturas estáticas de jogos acelerados pela GPU funcionem no Windows, e não cobre falhas forçadas de APIs nativas. Para jogar normalmente, mantenha `WineCompatibilityMode = false` e use as miniaturas DWM.
 
-O PR de segurança GDI é [#3](https://github.com/Psykolic/eve-o-custom/pull/3). O harness deve ser revisado e integrado separadamente antes de reconsiderar o merge do PR #3.
+A correção de segurança GDI do [PR #3](https://github.com/Psykolic/eve-o-custom/pull/3) já está em `main`. O CI usa o mesmo ensaio com `WindowManager.cs` do commit anterior à correção `ea235957ddf55895792b3a1a2a68001ff8584722` como referência fixa. A comparação é diagnóstica.
