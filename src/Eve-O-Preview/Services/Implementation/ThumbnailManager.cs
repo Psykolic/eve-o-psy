@@ -139,7 +139,7 @@ namespace EveOPreview.Services
 			IOrderedEnumerable<KeyValuePair<string, int>> clientOrder;
 			Dictionary<string, int> _cycleOrder = new Dictionary<string, int>(cycleOrder);
 
-			if ( _cycleOrder.Count == 0 ) 
+			if ( _cycleOrder.Count == 0 )
 			{
 				int order = 0;
 				foreach( var x in _thumbnailViews )
@@ -209,7 +209,7 @@ namespace EveOPreview.Services
 
 				if (_thumbnailViews.Any(x => x.Value.Title == t.Key && !x.Value.IsExcludedFromCycleGroup))
 				{
-					var ptr = t.Key.Equals(DEFAULT_CLIENT_TITLE) ? 
+					var ptr = t.Key.Equals(DEFAULT_CLIENT_TITLE) ?
 						(isForwards ? _thumbnailViews.OrderBy(x => x.Value.Id.ToInt64()) : _thumbnailViews.OrderByDescending(x => x.Value.Id.ToInt64())).FirstOrDefault(x => x.Value.Title == t.Key && ! x.Value.IsExcludedFromCycleGroup)
 						: _thumbnailViews.First(x => x.Value.Title == t.Key && !x.Value.IsExcludedFromCycleGroup);
 					SetActive(ptr);
@@ -537,7 +537,7 @@ namespace EveOPreview.Services
 				view.IsOverlayEnabled = this._configuration.ShowThumbnailOverlays;
 
 				view.SetHighlight(
-					this._configuration.EnableActiveClientHighlight && (view.Id == this._activeClient.Handle), 
+					this._configuration.EnableActiveClientHighlight && (view.Id == this._activeClient.Handle),
 					this._configuration.ActiveClientHighlightThickness);
 
 				if (!view.IsActive)
@@ -625,7 +625,7 @@ namespace EveOPreview.Services
 			{
 				this._windowManager.MinimizeWindow(this._activeClient.Handle, this._configuration.WindowsAnimationStyle, false);
 #if LINUX
-   			    this._windowManager.ActivateWindow(foregroundClientHandle, foregroundClientTitle);
+				this._windowManager.ActivateWindow(foregroundClientHandle, foregroundClientTitle);
 #else
 				this._windowManager.ActivateWindow(foregroundClientHandle, this._configuration.WindowsAnimationStyle);
 #endif
@@ -675,23 +675,52 @@ namespace EveOPreview.Services
 
 		private void ThumbnailActivated(IntPtr id)
 		{
-			IThumbnailView view = this._thumbnailViews[id];
+			if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView view) || view.IsDisposed)
+			{
+				return;
+			}
 
-			Task.Run(() =>
-				{
+			var capturedId = view.Id;
+			var capturedTitle = view.Title;
 #if LINUX
-					this._windowManager.ActivateWindow(view.Id, view.Title);
+			var capturedAnimation = capturedTitle;
 #else
-					this._windowManager.ActivateWindow(view.Id, this._configuration.WindowsAnimationStyle);
+			var capturedAnimation = this._configuration.WindowsAnimationStyle;
 #endif
-				})
-				.ContinueWith((task) =>
+
+			var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+			Task.Run(() => this._windowManager.ActivateWindow(capturedId, capturedAnimation))
+				.ContinueWith(activation =>
 				{
-					// This code should be executed on UI thread
-					this.SwitchActiveClient(view.Id, view.Title);
-					this.UpdateClientLayouts();
-					this.RefreshThumbnails();
-				}, TaskScheduler.FromCurrentSynchronizationContext());
+					if (activation.IsFaulted)
+					{
+						var error = activation.Exception!.GetBaseException();
+						System.Diagnostics.Trace.TraceError($"ThumbnailActivated: activation failed for {id}: {error.Message}");
+						return;
+					}
+
+					if (activation.IsCanceled)
+					{
+						return;
+					}
+
+					try
+					{
+						if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView currentView)
+							|| !ReferenceEquals(currentView, view) || currentView.IsDisposed)
+						{
+							return;
+						}
+
+						this.SwitchActiveClient(capturedId, capturedTitle);
+						this.UpdateClientLayouts();
+						this.RefreshThumbnails();
+					}
+					catch (Exception error)
+					{
+						System.Diagnostics.Trace.TraceError($"ThumbnailActivated: UI update failed for {id}: {error.Message}");
+					}
+				}, uiScheduler);
 		}
 
 		private void ThumbnailDeactivated(IntPtr id, bool switchOut)
