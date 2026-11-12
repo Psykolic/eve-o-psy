@@ -30,7 +30,7 @@ namespace EveOPreview.Services.Implementation
 			this._wmctrlLocation = FindLinuxBinLocation("wmctrl");
 #endif
 			// Composition is always enabled for Windows 8+
-			this.IsCompositionEnabled =
+			this.IsCompositionEnabled = 
 				((Environment.OSVersion.Version.Major == 6) && (Environment.OSVersion.Version.Minor >= 2)) // Win 8 and Win 8.1
 				|| (Environment.OSVersion.Version.Major >= 10) // Win 10
 				|| DwmNativeMethods.DwmIsCompositionEnabled(); // In case of Win 7 an API call is requiredWin 7
@@ -140,8 +140,8 @@ namespace EveOPreview.Services.Implementation
                 if (Environment.GetEnvironmentVariable("container") == "flatpak")
                 {
                     cmd = $"-c \"flatpak-spawn --host wmctrl -a \"\"" + windowName + "\"\"\"";
-                }
-                else
+                } 
+                else 
                 {
                     cmd = $"-c \"{this._wmctrlLocation}/wmctrl -a \"\"" + windowName + "\"\"\"";
                 }
@@ -295,99 +295,33 @@ namespace EveOPreview.Services.Implementation
 		public Image GetStaticThumbnail(IntPtr source)
 		{
 			var sourceContext = User32NativeMethods.GetDC(source);
-			if (sourceContext == IntPtr.Zero)
+
+			User32NativeMethods.GetClientRect(source, out RECT windowRect);
+
+			var width = windowRect.Right - windowRect.Left;
+			var height = windowRect.Bottom - windowRect.Top;
+
+			// Check if there is anything to make thumbnail of
+			if ((width < WINDOW_SIZE_THRESHOLD) || (height < WINDOW_SIZE_THRESHOLD))
 			{
-				return null;
+                User32NativeMethods.ReleaseDC(source, sourceContext);
+
+                return null;
 			}
 
-			try
-			{
-				RECT windowRect;
-				if (!User32NativeMethods.GetClientRect(source, out windowRect))
-				{
-					return null;
-				}
+			var destContext = Gdi32NativeMethods.CreateCompatibleDC(sourceContext);
+			var bitmap = Gdi32NativeMethods.CreateCompatibleBitmap(sourceContext, width, height);
 
-				var width = windowRect.Right - windowRect.Left;
-				var height = windowRect.Bottom - windowRect.Top;
+			var oldBitmap = Gdi32NativeMethods.SelectObject(destContext, bitmap);
+			Gdi32NativeMethods.BitBlt(destContext, 0, 0, width, height, sourceContext, 0, 0, Gdi32NativeMethods.SRCCOPY);
+			Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
+			Gdi32NativeMethods.DeleteDC(destContext);
+			User32NativeMethods.ReleaseDC(source, sourceContext);
 
-				// Check if there is anything to make thumbnail of
-				if ((width < WINDOW_SIZE_THRESHOLD) || (height < WINDOW_SIZE_THRESHOLD))
-				{
-					return null;
-				}
+			Image image = Image.FromHbitmap(bitmap);
+			Gdi32NativeMethods.DeleteObject(bitmap);
 
-				var destContext = Gdi32NativeMethods.CreateCompatibleDC(sourceContext);
-				if (destContext == IntPtr.Zero)
-				{
-					return null;
-				}
-
-				var bitmap = IntPtr.Zero;
-				var oldBitmap = IntPtr.Zero;
-				bool selectSucceeded = false;
-
-				try
-				{
-					bitmap = Gdi32NativeMethods.CreateCompatibleBitmap(sourceContext, width, height);
-					if (bitmap == IntPtr.Zero)
-					{
-						return null;
-					}
-
-					oldBitmap = Gdi32NativeMethods.SelectObject(destContext, bitmap);
-					if (oldBitmap == IntPtr.Zero || oldBitmap == new IntPtr(-1))
-					{
-						return null;
-					}
-					selectSucceeded = true;
-
-					if (!Gdi32NativeMethods.BitBlt(destContext, 0, 0, width, height, sourceContext, 0, 0, Gdi32NativeMethods.SRCCOPY))
-					{
-						return null;
-					}
-
-					// BitBlt succeeded: restore oldBitmap BEFORE Image.FromHbitmap
-					var restoreResult = Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
-					if (restoreResult == IntPtr.Zero || restoreResult == new IntPtr(-1))
-					{
-						// Restoration failed: bitmap still selected in destContext
-						// selectSucceeded remains true; finally will handle cleanup with DC-first order
-						return null;
-					}
-
-					// Restoration succeeded: bitmap no longer selected in destContext
-					selectSucceeded = false; // Prevent finally from restoring again
-
-					Image image = Image.FromHbitmap(bitmap);
-					return image;
-				}
-				finally
-				{
-					// Attempt to restore oldBitmap only if selection succeeded and wasn't already restored
-					if (selectSucceeded)
-					{
-						Gdi32NativeMethods.SelectObject(destContext, oldBitmap);
-					}
-
-					// Delete the DC before deleting the bitmap if restoration failed
-					try
-					{
-						Gdi32NativeMethods.DeleteDC(destContext);
-					}
-					finally
-					{
-						if (bitmap != IntPtr.Zero)
-						{
-							Gdi32NativeMethods.DeleteObject(bitmap);
-						}
-					}
-				}
-			}
-			finally
-			{
-				User32NativeMethods.ReleaseDC(source, sourceContext);
-			}
+			return image;
 		}
 	}
 }

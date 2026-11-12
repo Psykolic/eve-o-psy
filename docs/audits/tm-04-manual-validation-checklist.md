@@ -1,5 +1,7 @@
 # TM-04 — Manual Windows 11 6+1 Validation Checklist
 
+**Escopo atual.** O ajuste de captura estática foi separado em [`separate/tm04-gdi`](https://github.com/Psykolic/eve-o-custom/tree/separate/tm04-gdi). Os cenários G1–G4 pertencem à revisão de GDI e ficam aqui como histórico. A validação guiada 6+1 foi executada antes da separação; o CI do PR #16 valida o novo commit.
+
 **Data:** 2026-11-11  
 **Branch:** `claude/issue-15` (PR #16)  
 **Commits incluídos:** 
@@ -122,7 +124,7 @@
 | CI Windows: **3 testes TM-01 passam** (merge combinado) | ✅ Sim | ⏳ Merge descartável necessário |
 | Zero falhas/skips no CI | ✅ Sim | ⏳ |
 | Validação manual M1–M9 **todos Passed** | ✅ Sim | ☐ Pendente |
-| Validação GDI G1–G4 **todos Passed** | ✅ Sim | ☐ Pendente |
+| Validação GDI G1–G4 | Fora do escopo TM-04 | Acompanhar na revisão de GDI |
 | Validação Race R1–R5 **todos Passed** | ✅ Sim | ☐ Pendente |
 | Zero "Blocked" sem plano de resolução | ✅ Sim | ⏳ |
 | Política de ordenação A/B decidida/documentada | ✅ Sim | 📝 Documentada, não implementada |
