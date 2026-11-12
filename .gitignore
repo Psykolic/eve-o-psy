@@ -9,3 +9,7 @@ src/*/.vs/
 *.DotSettings
 build/Fody*
 *.vs/
+.codex/
+EVE-O-Preview.json
+*.bak
+TestResults/
