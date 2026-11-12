@@ -222,7 +222,7 @@ namespace EveOPreview.View
 			base.Hide();
 		}
 
-		public bool IsDisposed => _isDisposed;
+		public new bool IsDisposed => _isDisposed || base.IsDisposed || this.Disposing;
 
 		public new virtual void Close()
 		{

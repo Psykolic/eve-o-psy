@@ -2,7 +2,7 @@
 //
 // These tests exercise the private ThumbnailActivated event handler via reflection and
 // install a queued SynchronizationContext on the calling thread so the UI continuation
-// (registered with TaskScheduler.FromCurrentSynchronizationContext()) can be dequeued and
+// posted to the UI scheduler can be dequeued and
 // run deterministically on the test thread - no WPF dispatcher is required for these paths.
 //
 // NOTE: ThumbnailManager itself creates a DispatcherTimer in its constructor, so running
@@ -13,6 +13,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Threading;
 using EveOPreview.Configuration;
@@ -330,32 +332,6 @@ namespace EveO.Tests.Services
         }
 
         [Fact]
-        public void ThumbnailActivated_CancelledTask_StateNotMutated()
-        {
-            // This test verifies the IsCanceled branch logic by constructing a cancelled Task
-            // directly (since production Task.Run doesn't support CancellationToken yet).
-            var harness = new TestHarness();
-            var id = new IntPtr(0x8888);
-            var view = CreateView(id, "EVE - Alpha", isActive: true, isDisposed: false);
-            harness.AddView(view.Object);
-
-            RunWithQueuedContext(context =>
-            {
-                // Use reflection to invoke the continuation directly with a cancelled task
-                var method = typeof(ThumbnailManager).GetMethod("ThumbnailActivated", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                Assert.NotNull(method);
-
-                // Create a cancelled task and invoke the continuation logic manually
-                var cancelledTask = System.Threading.Tasks.Task.FromCanceled<int>(new System.Threading.CancellationToken(true));
-
-                // We can't easily test the IsCanceled branch without modifying production to accept
-                // a CancellationToken. This test documents the expected behavior:
-                // if task.IsCanceled, the continuation should return early without mutating state.
-                // The actual branch coverage will come from integration tests with real cancellation.
-            });
-        }
-
-        [Fact]
         public void ThumbnailActivated_SuccessfulActivation_SwitchesActiveClient()
         {
             var harness = new TestHarness();
@@ -416,29 +392,89 @@ namespace EveO.Tests.Services
         }
 
         [Fact]
-        public void ThumbnailActivated_DisposedView_SkipsStateTransition()
+        public void ThumbnailActivated_AlreadyDisposedView_DoesNotActivate()
         {
             var harness = new TestHarness();
             var id = new IntPtr(0x7777);
-            // Disposed (closed) but still registered in dictionary (callback queued before detach)
-            var view = CreateView(id, "EVE - Closed", isActive: false, isDisposed: true);
+            var view = CreateView(id, "EVE - Closed", isDisposed: true);
             harness.AddView(view.Object);
-
-#if LINUX
-            harness.WindowManager.Setup(w => w.ActivateWindow(It.IsAny<IntPtr>(), It.IsAny<string>()));
-#else
-            harness.WindowManager.Setup(w => w.ActivateWindow(It.IsAny<IntPtr>(), It.IsAny<AnimationStyle>()));
-#endif
+            view.Invocations.Clear();
 
             RunWithQueuedContext(context =>
             {
                 InvokeThumbnailActivated(harness.Manager, id);
+                Assert.False(context.TryDequeueNoWait(out _));
+            });
+
+            view.VerifyGet(v => v.Id, Times.Never);
+            view.VerifyGet(v => v.Title, Times.Never);
+#if LINUX
+            harness.WindowManager.Verify(w => w.ActivateWindow(It.IsAny<IntPtr>(), It.IsAny<string>()), Times.Never);
+#else
+            harness.WindowManager.Verify(w => w.ActivateWindow(It.IsAny<IntPtr>(), It.IsAny<AnimationStyle>()), Times.Never);
+#endif
+        }
+
+        [Fact]
+        public void ThumbnailActivated_ViewDisposedWhileActivationRuns_SkipsStateTransition()
+        {
+            var harness = new TestHarness();
+            var id = new IntPtr(0x7778);
+            var view = CreateView(id, "EVE - Closing");
+            harness.AddView(view.Object);
+
+            using var entered = new ManualResetEventSlim(false);
+            using var release = new ManualResetEventSlim(false);
+            SetupActivateWindowBlocks(harness.WindowManager, entered, release);
+
+            RunWithQueuedContext(context =>
+            {
+                InvokeThumbnailActivated(harness.Manager, id);
+                try
+                {
+                    Assert.True(entered.Wait(ContinuationTimeout), "Background activation did not start.");
+                    view.SetupGet(v => v.IsDisposed).Returns(true);
+                }
+                finally
+                {
+                    release.Set();
+                }
+
                 InvokeContinuation(context);
             });
 
-            // A disposed view must not complete activation
             harness.WindowManager.Verify(w => w.GetForegroundWindowHandle(), Times.Never);
             Assert.Null(harness.Manager.GetActiveClient());
+        }
+
+        [Fact]
+        public void ThumbnailActivated_RefreshFault_IsReported()
+        {
+            var harness = new TestHarness();
+            var id = new IntPtr(0x7779);
+            harness.AddView(CreateView(id, "EVE - Alpha").Object);
+            harness.WindowManager.Setup(w => w.GetForegroundWindowHandle())
+                .Throws(new InvalidOperationException("refresh failed"));
+
+            using var output = new StringWriter();
+            using var listener = new TextWriterTraceListener(output);
+            Trace.Listeners.Add(listener);
+            try
+            {
+                RunWithQueuedContext(context =>
+                {
+                    InvokeThumbnailActivated(harness.Manager, id);
+                    InvokeContinuation(context);
+                });
+            }
+            finally
+            {
+                Trace.Listeners.Remove(listener);
+            }
+
+            Assert.Contains("UI update failed for", output.ToString());
+            Assert.Contains("refresh failed", output.ToString());
+            harness.WindowManager.Verify(w => w.GetForegroundWindowHandle(), Times.Once);
         }
 
         private static void RunWithQueuedContext(Action<QueuedSynchronizationContext> action)

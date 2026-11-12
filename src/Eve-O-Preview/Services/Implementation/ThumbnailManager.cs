@@ -675,77 +675,52 @@ namespace EveOPreview.Services
 
 		private void ThumbnailActivated(IntPtr id)
 		{
-			// A window can disappear (or be re-registered under the same handle) between the
-			// moment this event fires and the UI continuation runs. Rapid 6+1 switching makes
-			// unknown/stale ids a normal condition, not an error. Ordinary click-to-activate
-			// behavior is preserved: known ids activate as before.
-			if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView view))
+			if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView view) || view.IsDisposed)
 			{
 				return;
 			}
 
-			// Capture required values on UI thread BEFORE scheduling background work.
-			// Worker must not access the view (lifecycle/ownership safety).
 			var capturedId = view.Id;
 			var capturedTitle = view.Title;
 #if LINUX
-			var capturedAnimation = view.Title; // animation param is title on LINUX
+			var capturedAnimation = capturedTitle;
 #else
 			var capturedAnimation = this._configuration.WindowsAnimationStyle;
 #endif
 
-			Task.Run(() =>
+			var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+			Task.Run(() => this._windowManager.ActivateWindow(capturedId, capturedAnimation))
+				.ContinueWith(activation =>
 				{
-#if LINUX
-					this._windowManager.ActivateWindow(capturedId, capturedAnimation);
-#else
-					this._windowManager.ActivateWindow(capturedId, capturedAnimation);
-#endif
-				})
-				// FromCurrentSynchronizationContext is evaluated here, at ContinueWith registration time
-				// (normally on the UI thread, where this event handler runs) - not inside the Task.Run
-				// delegate. Keeping it preserves marshaling of all UI-only work to the UI thread.
-				.ContinueWith((task) =>
-				{
-					// This code should be executed on UI thread
-					if (task.IsCanceled)
+					if (activation.IsFaulted)
 					{
-						// Activation was cancelled: do not mutate client/UI state.
+						var error = activation.Exception!.GetBaseException();
+						System.Diagnostics.Trace.TraceError($"ThumbnailActivated: activation failed for {id}: {error.Message}");
 						return;
 					}
 
-					if (task.IsFaulted)
-					{
-						// Observe the exception so it does not remain unobserved, and skip the state
-						// transition - reporting a successful activation after a failed one would leave
-						// the UI and the _activeClient bookkeeping out of sync. The project has no shared
-						// logging abstraction (WindowManager keeps a private, LINUX-oriented file logger),
-						// so surface the failure via Debug output instead of silently swallowing it.
-						System.Diagnostics.Debug.WriteLine($"ThumbnailActivated: ActivateWindow failed for thumbnail {id}: {task.Exception?.GetBaseException().Message}");
-						return;
-					}
-
-					// The client window may have been closed (or replaced by a new view registered under
-					// the same handle) while activation was in flight. Re-check that we still hold the same
-					// view instance before mutating UI/client state. Never touch a stale/disposed view.
-					if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView currentView) || !ReferenceEquals(currentView, view))
+					if (activation.IsCanceled)
 					{
 						return;
 					}
 
-					// Additional guard: the view may have been closed (IsDisposed = true) while still
-					// registered in the dictionary (e.g., callback already queued before TM-01 detach).
-					// Skip activation to avoid mutating state with a disposed view.
-					if (currentView.IsDisposed)
+					try
 					{
-						return;
-					}
+						if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView currentView)
+							|| !ReferenceEquals(currentView, view) || currentView.IsDisposed)
+						{
+							return;
+						}
 
-					// Use captured values; currentView verified to be same instance as original view.
-					this.SwitchActiveClient(capturedId, capturedTitle);
-					this.UpdateClientLayouts();
-					this.RefreshThumbnails();
-				}, TaskScheduler.FromCurrentSynchronizationContext());
+						this.SwitchActiveClient(capturedId, capturedTitle);
+						this.UpdateClientLayouts();
+						this.RefreshThumbnails();
+					}
+					catch (Exception error)
+					{
+						System.Diagnostics.Trace.TraceError($"ThumbnailActivated: UI update failed for {id}: {error.Message}");
+					}
+				}, uiScheduler);
 		}
 
 		private void ThumbnailDeactivated(IntPtr id, bool switchOut)

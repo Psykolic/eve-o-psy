@@ -60,3 +60,12 @@ The project has **no shared logging abstraction**. `WindowManager` keeps a priva
 5. Verify the intel-only client on the secondary monitor activates independently and is not affected by primary-monitor switching.
 6. Verify ordinary single-click activation after an idle period (regression check of normal click-to-activate).
 7. Check Debug output (Debug build under a debugger) for `ThumbnailActivated: ActivateWindow failed ...` messages; note frequency and correlate with step 2–4 to confirm the faulted path behaves (no ghost active client).
+
+
+## Acompanhamento após o head 6c65737
+
+- Uma view já descartada é rejeitada antes da leitura de ID/título. A continuação verifica novamente a identidade e o descarte antes das operações de UI.
+- A flag de fechamento antecipado da view também considera `Disposing` e `IsDisposed` do WinForms. Os testes simulam descarte antes e durante a ativação. O roteiro 6+1 cobre o fechamento real.
+- Falhas gerenciadas de ativação são observadas e registradas via `Trace`. Falhas da continuação também são registradas. TM-01 fornece o `finally` que restaura o estado de refresh após exceção.
+- `ActivateWindow` é síncrono e não recebe token. O teste que apenas criava uma Task cancelada foi removido. O teste de `OperationCanceledException` continua cobrindo a falha gerenciada do caminho real.
+- A política A/B continua em aberto. O refresh consulta o HWND em primeiro plano, portanto a ordem das continuações por si só não estabelece qual janela fica em foco. O teste manual deve registrar ordem de clique, foco e destaque.
