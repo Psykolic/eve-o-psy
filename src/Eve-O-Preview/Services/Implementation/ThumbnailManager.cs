@@ -139,7 +139,7 @@ namespace EveOPreview.Services
 			IOrderedEnumerable<KeyValuePair<string, int>> clientOrder;
 			Dictionary<string, int> _cycleOrder = new Dictionary<string, int>(cycleOrder);
 
-			if ( _cycleOrder.Count == 0 ) 
+			if ( _cycleOrder.Count == 0 )
 			{
 				int order = 0;
 				foreach( var x in _thumbnailViews )
@@ -209,7 +209,7 @@ namespace EveOPreview.Services
 
 				if (_thumbnailViews.Any(x => x.Value.Title == t.Key && !x.Value.IsExcludedFromCycleGroup))
 				{
-					var ptr = t.Key.Equals(DEFAULT_CLIENT_TITLE) ? 
+					var ptr = t.Key.Equals(DEFAULT_CLIENT_TITLE) ?
 						(isForwards ? _thumbnailViews.OrderBy(x => x.Value.Id.ToInt64()) : _thumbnailViews.OrderByDescending(x => x.Value.Id.ToInt64())).FirstOrDefault(x => x.Value.Title == t.Key && ! x.Value.IsExcludedFromCycleGroup)
 						: _thumbnailViews.First(x => x.Value.Title == t.Key && !x.Value.IsExcludedFromCycleGroup);
 					SetActive(ptr);
@@ -237,6 +237,11 @@ namespace EveOPreview.Services
 
 		public void RegisterCycleClientHotkey(IEnumerable<Keys> keys, bool isForwards, Dictionary<string, int> cycleOrder)
 		{
+			if (keys == null)
+			{
+				return;
+			}
+
 			foreach (var hotkey in keys)
 			{
 				if (hotkey == Keys.None)
@@ -257,6 +262,11 @@ namespace EveOPreview.Services
 		}
 		public void RegisterMinimizeAllClientsHotkey(IEnumerable<Keys> keys)
 		{
+			if (keys == null)
+			{
+				return;
+			}
+
 			foreach (var hotkey in keys)
 			{
 				if (hotkey == Keys.None)
@@ -370,30 +380,42 @@ namespace EveOPreview.Services
 
 			foreach (IProcessInfo process in removedProcesses)
 			{
-				IThumbnailView view = this._thumbnailViews[process.Handle];
-
-				this._thumbnailViews.Remove(view.Id);
-				if (view.Title != ThumbnailManager.DEFAULT_CLIENT_TITLE)
-				{
-					viewsRemoved.Add(view.Title);
-				}
-
-				view.UnregisterHotkey();
-
-				view.ThumbnailResized = null;
-				view.ThumbnailMoved = null;
-				view.ThumbnailFocused = null;
-				view.ThumbnailLostFocus = null;
-				view.ThumbnailActivated = null;
-				view.ThumbnailToggleCycleGroup = null;
-
-				view.Close();
+				this.TryRemoveThumbnail(process, viewsRemoved);
 			}
 
 			if ((viewsAdded.Count > 0) || (viewsRemoved.Count > 0))
 			{
 				await this._mediator.Publish(new ThumbnailListUpdated(viewsAdded, viewsRemoved));
 			}
+		}
+
+		// Processes can disappear between a monitor snapshot and the next UI update.
+		// An already-removed handle must not interrupt refresh of the remaining clients.
+		internal bool TryRemoveThumbnail(IProcessInfo process, ICollection<string> viewsRemoved)
+		{
+			if (!this._thumbnailViews.TryGetValue(process.Handle, out IThumbnailView view))
+			{
+				return false;
+			}
+
+			this._thumbnailViews.Remove(view.Id);
+			if (view.Title != ThumbnailManager.DEFAULT_CLIENT_TITLE)
+			{
+				viewsRemoved.Add(view.Title);
+			}
+
+			view.UnregisterHotkey();
+
+			view.ThumbnailResized = null;
+			view.ThumbnailMoved = null;
+			view.ThumbnailFocused = null;
+			view.ThumbnailLostFocus = null;
+			view.ThumbnailActivated = null;
+			view.ThumbnailDeactivated = null;
+			view.ThumbnailToggleCycleGroup = null;
+
+			view.Close();
+			return true;
 		}
 
 		private void RefreshThumbnails()
@@ -468,89 +490,95 @@ namespace EveOPreview.Services
 			}
 
 			this.DisableViewEvents();
-
-			// Snap thumbnail
-			// No need to update Thumbnails while one of them is highlighted
-			if ((!this._isHoverEffectActive) && this.TryDequeueLocationChange(out var locationChange))
+			try
 			{
-				if ((locationChange.ActiveClient == this._activeClient.Title) && this._thumbnailViews.TryGetValue(locationChange.Handle, out var view))
-				{
-					this.SnapThumbnailView(view);
 
-					this.RaiseThumbnailLocationUpdatedNotification(view.Title);
-				}
-				else
-				{
-					this.RaiseThumbnailLocationUpdatedNotification(locationChange.Title);
-				}
-			}
-
-			// Hide, show, resize and move - update ZoomAnchor setting
-			foreach (KeyValuePair<IntPtr, IThumbnailView> entry in this._thumbnailViews)
-			{
-				IThumbnailView view = entry.Value;
-				// update ZoomAnchor regardless
-				view.ClientZoomAnchor = this._configuration.GetZoomAnchor(view.Title, this._configuration.ThumbnailZoomAnchor);
-
-
-				if (hideAllThumbnails || this._configuration.IsThumbnailDisabled(view.Title))
-				{
-					if (view.IsActive)
-					{
-						view.Hide();
-					}
-					continue;
-				}
-
-				if (this._configuration.HideActiveClientThumbnail && (view.Id == this._activeClient.Handle))
-				{
-					if (view.IsActive)
-					{
-						view.Hide();
-					}
-					continue;
-				}
-
-				if (this._configuration.HideLoginClientThumbnail && (view.Title == DEFAULT_CLIENT_TITLE ))
-				{
-					if (view.IsActive)
-					{
-						view.Hide();
-					}
-					continue;
-				}
-
+				// Snap thumbnail
 				// No need to update Thumbnails while one of them is highlighted
-				if (!this._isHoverEffectActive)
+				if ((!this._isHoverEffectActive) && this.TryDequeueLocationChange(out var locationChange))
 				{
-					// Do not even move thumbnails with default caption
-					if (this.IsManageableThumbnail(view))
+					if ((locationChange.ActiveClient == this._activeClient.Title) && this._thumbnailViews.TryGetValue(locationChange.Handle, out var view))
 					{
-						view.ThumbnailLocation = this._configuration.GetThumbnailLocation(view.Title, this._activeClient.Title, view.ThumbnailLocation);
-						view.ThumbnailSize = this._configuration.GetThumbnailSize(view.Title, this._activeClient.Title, view.ThumbnailSize);
+						this.SnapThumbnailView(view);
+
+						this.RaiseThumbnailLocationUpdatedNotification(view.Title);
+					}
+					else
+					{
+						this.RaiseThumbnailLocationUpdatedNotification(locationChange.Title);
+					}
+				}
+
+				// Hide, show, resize and move - update ZoomAnchor setting
+				foreach (KeyValuePair<IntPtr, IThumbnailView> entry in this._thumbnailViews)
+				{
+					IThumbnailView view = entry.Value;
+					// update ZoomAnchor regardless
+					view.ClientZoomAnchor = this._configuration.GetZoomAnchor(view.Title, this._configuration.ThumbnailZoomAnchor);
+
+
+					if (hideAllThumbnails || this._configuration.IsThumbnailDisabled(view.Title))
+					{
+						if (view.IsActive)
+						{
+							view.Hide();
+						}
+						continue;
 					}
 
-					view.SetOpacity(this._configuration.ThumbnailOpacity);
-					view.SetTopMost(this._configuration.ShowThumbnailsAlwaysOnTop);
+					if (this._configuration.HideActiveClientThumbnail && (view.Id == this._activeClient.Handle))
+					{
+						if (view.IsActive)
+						{
+							view.Hide();
+						}
+						continue;
+					}
+
+					if (this._configuration.HideLoginClientThumbnail && (view.Title == DEFAULT_CLIENT_TITLE ))
+					{
+						if (view.IsActive)
+						{
+							view.Hide();
+						}
+						continue;
+					}
+
+					// No need to update Thumbnails while one of them is highlighted
+					if (!this._isHoverEffectActive)
+					{
+						// Do not even move thumbnails with default caption
+						if (this.IsManageableThumbnail(view))
+						{
+							view.ThumbnailLocation = this._configuration.GetThumbnailLocation(view.Title, this._activeClient.Title, view.ThumbnailLocation);
+							view.ThumbnailSize = this._configuration.GetThumbnailSize(view.Title, this._activeClient.Title, view.ThumbnailSize);
+						}
+
+						view.SetOpacity(this._configuration.ThumbnailOpacity);
+						view.SetTopMost(this._configuration.ShowThumbnailsAlwaysOnTop);
+					}
+
+					view.IsOverlayEnabled = this._configuration.ShowThumbnailOverlays;
+
+					view.SetHighlight(
+						this._configuration.EnableActiveClientHighlight && (view.Id == this._activeClient.Handle),
+						this._configuration.ActiveClientHighlightThickness);
+
+					if (!view.IsActive)
+					{
+						view.Show();
+					}
+					else
+					{
+						view.Refresh(forceRefresh);
+					}
 				}
 
-				view.IsOverlayEnabled = this._configuration.ShowThumbnailOverlays;
-
-				view.SetHighlight(
-					this._configuration.EnableActiveClientHighlight && (view.Id == this._activeClient.Handle), 
-					this._configuration.ActiveClientHighlightThickness);
-
-				if (!view.IsActive)
-				{
-					view.Show();
-				}
-				else
-				{
-					view.Refresh(forceRefresh);
-				}
 			}
-
-			this.EnableViewEvents();
+			finally
+			{
+				this.EnableViewEvents();
+			}
 		}
 
 		public void UpdateThumbnailsSize()
@@ -625,7 +653,7 @@ namespace EveOPreview.Services
 			{
 				this._windowManager.MinimizeWindow(this._activeClient.Handle, this._configuration.WindowsAnimationStyle, false);
 #if LINUX
-   			    this._windowManager.ActivateWindow(foregroundClientHandle, foregroundClientTitle);
+				this._windowManager.ActivateWindow(foregroundClientHandle, foregroundClientTitle);
 #else
 				this._windowManager.ActivateWindow(foregroundClientHandle, this._configuration.WindowsAnimationStyle);
 #endif
@@ -675,23 +703,52 @@ namespace EveOPreview.Services
 
 		private void ThumbnailActivated(IntPtr id)
 		{
-			IThumbnailView view = this._thumbnailViews[id];
+			if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView view) || view.IsDisposed)
+			{
+				return;
+			}
 
-			Task.Run(() =>
-				{
+			var capturedId = view.Id;
+			var capturedTitle = view.Title;
 #if LINUX
-					this._windowManager.ActivateWindow(view.Id, view.Title);
+			var capturedAnimation = capturedTitle;
 #else
-					this._windowManager.ActivateWindow(view.Id, this._configuration.WindowsAnimationStyle);
+			var capturedAnimation = this._configuration.WindowsAnimationStyle;
 #endif
-				})
-				.ContinueWith((task) =>
+
+			var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+			Task.Run(() => this._windowManager.ActivateWindow(capturedId, capturedAnimation))
+				.ContinueWith(activation =>
 				{
-					// This code should be executed on UI thread
-					this.SwitchActiveClient(view.Id, view.Title);
-					this.UpdateClientLayouts();
-					this.RefreshThumbnails();
-				}, TaskScheduler.FromCurrentSynchronizationContext());
+					if (activation.IsFaulted)
+					{
+						var error = activation.Exception!.GetBaseException();
+						System.Diagnostics.Trace.TraceError($"ThumbnailActivated: activation failed for {id}: {error.Message}");
+						return;
+					}
+
+					if (activation.IsCanceled)
+					{
+						return;
+					}
+
+					try
+					{
+						if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView currentView)
+							|| !ReferenceEquals(currentView, view) || currentView.IsDisposed)
+						{
+							return;
+						}
+
+						this.SwitchActiveClient(capturedId, capturedTitle);
+						this.UpdateClientLayouts();
+						this.RefreshThumbnails();
+					}
+					catch (Exception error)
+					{
+						System.Diagnostics.Trace.TraceError($"ThumbnailActivated: UI update failed for {id}: {error.Message}");
+					}
+				}, uiScheduler);
 		}
 
 		private void ThumbnailDeactivated(IntPtr id, bool switchOut)
