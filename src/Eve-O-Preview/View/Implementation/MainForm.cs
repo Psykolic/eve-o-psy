@@ -699,6 +699,7 @@ namespace EveOPreview.View
 			this.SpotlightClientsList.SelectedIndex = e.Index;
 			this.UpdateSpotlightRegionControls();
 			this.SpotlightClientsChanged?.Invoke();
+			this.SpotlightClientSelected?.Invoke(title);
 		}
 
 		private void SpotlightClientsList_SelectedIndexChanged(object sender, EventArgs e)

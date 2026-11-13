@@ -1342,7 +1342,7 @@ namespace EveOPreview.View
 			// 
 			SpotlightClientsList.BackColor = SystemColors.Window;
 			SpotlightClientsList.BorderStyle = BorderStyle.FixedSingle;
-			SpotlightClientsList.CheckOnClick = true;
+			SpotlightClientsList.CheckOnClick = false;
 			SpotlightClientsList.FormattingEnabled = true;
 			SpotlightClientsList.IntegralHeight = false;
 			SpotlightClientsList.Location = new Point(4, 30);
