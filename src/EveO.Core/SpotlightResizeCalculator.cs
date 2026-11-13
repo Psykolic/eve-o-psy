@@ -3,7 +3,7 @@ using System.Drawing;
 
 namespace EveOPreview.Services
 {
-	internal enum SpotlightResizeEdge
+	public enum SpotlightResizeEdge
 	{
 		None,
 		Left,
@@ -16,7 +16,7 @@ namespace EveOPreview.Services
 		BottomRight
 	}
 
-	internal static class SpotlightResizeCalculator
+	public static class SpotlightResizeCalculator
 	{
 		public static Rectangle Calculate(
 			Rectangle startBounds,

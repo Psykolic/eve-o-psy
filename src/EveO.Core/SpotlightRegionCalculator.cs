@@ -3,7 +3,7 @@ using System.Drawing;
 
 namespace EveOPreview.Services
 {
-	internal static class SpotlightRegionCalculator
+	public static class SpotlightRegionCalculator
 	{
 		/// <summary>
 		/// Maps a rectangle selected in a preview window to the corresponding
