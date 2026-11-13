@@ -11,7 +11,20 @@ namespace EveOPreview.View
 		#region Private fields
 		private readonly PictureBox _thumbnail;
 		private IThumbnailConfiguration _config;
+		private int _backgroundCaptureTicks;
 		#endregion
+
+		// A captura de cliente não ativo custa 30-60 ms por causa do retry com PrintWindow
+		// (issue #50). Meio segundo de defasagem numa miniatura parada é imperceptível,
+		// então o cliente em segundo plano é capturado a cada 2º refresh forçado.
+		internal const int BackgroundCaptureInterval = 2;
+
+		internal static bool NextBackgroundCapture(ref int tick)
+		{
+			var capture = (tick % BackgroundCaptureInterval) == 0;
+			tick++;
+			return capture;
+		}
 
 		public StaticThumbnailView(IWindowManager windowManager, IThumbnailConfiguration config, IThumbnailManager thumbnailManager)
 			: base(windowManager, config, thumbnailManager)
@@ -32,6 +45,20 @@ namespace EveOPreview.View
 			if (!forceRefresh || this.IsPreventPreviews())
 			{
 				return;
+			}
+
+			// Cliente em primeiro plano mantém 1 Hz; os demais caem para 0.5 Hz.
+			if (this.WindowManager.GetForegroundWindowHandle() != this.Id)
+			{
+				if (!NextBackgroundCapture(ref this._backgroundCaptureTicks))
+				{
+					return;
+				}
+			}
+			else
+			{
+				// Voltar ao primeiro plano retoma a captura imediatamente.
+				this._backgroundCaptureTicks = 0;
 			}
 
 			var thumbnail = this.WindowManager.GetStaticThumbnail(this.Id);
