@@ -4,7 +4,7 @@
 >
 > **Status:** **Rascunho (Draft)** — apenas para revisão. Nenhuma automação de jogo, broadcast de entrada, injeção ou acesso à memória do cliente.
 >
-> **Validação real no cliente EVE:** **PENDENTE**. O ensaio sintético de 1.000 capturas (`GdiStressTests`) já passa no CI Windows; este documento cobre a validação **fora** do harness, com o cliente real.
+> **Validação real no cliente EVE:** **EXECUTADA EM 13/11/2026 — PARCIAL, COM FALHA FUNCIONAL.** A captura estática só renderiza a thumbnail do cliente em primeiro plano; com 6+1 clientes empilhados, as demais ficam pretas. Handles GDI/USER ficaram estáveis. Detalhes em [4.1](#41-execução-de-13112026). O ensaio sintético de 1.000 capturas (`GdiStressTests`) já passa no CI Windows; este documento cobre a validação **fora** do harness, com o cliente real.
 
 ---
 
@@ -149,21 +149,49 @@ Durante os passos acima, se houver **múltiplos clientes** (A–F + I):
 
 ---
 
-## 4. Tabela de Resultados Preenchível
+## 4. Tabela de Resultados
 
-| SHA Testado | Ambiente (Win11 build, GPU/driver, monitores, DPI, modo janela EVE, versão EVE) | Etapa (Seção) | Aprovação Parcial / Falha | Observações | Evidência (screenshot, vídeo, log, CSV GDI/USER) |
-|-------------|-----------------------------------------------------------------------------------|---------------|----------------------------|-------------|--------------------------------------------------|
-|             |                                                                                   | 2.1 Atualização imagem | ☐ Parcial / ☐ Falha / ☐ Passou |             |                                                  |
-|             |                                                                                   | 2.2 Minimizar/Restaurar | ☐ Parcial / ☐ Falha / ☐ Passou |             |                                                  |
-|             |                                                                                   | 2.3 Fechar/Reabrir | ☐ Parcial / ☐ Falha / ☐ Passou |             |                                                  |
-|             |                                                                                   | 2.4 Thumbnails restantes | ☐ Parcial / ☐ Falha / ☐ Passou |             |                                                  |
-|             |                                                                                   | 3.2 Sequência 6+1 (GDI/USER) | ☐ Parcial / ☐ Falha / ☐ Passou |             |                                                  |
-|             |                                                                                   | **Validação Real (Cliente EVE)** | **☐ PENDENTE** | **Não executado** | **—** |
+Execução de **13/11/2026**, build publicado com `dotnet publish` a partir de `e3a1720` (`WineCompatibilityMode = true`, `PreventPreviews = false`, `ThumbnailsOpacity = 1.0`, cópia separada do JSON).
+
+| SHA Testado | Ambiente (Win11 build, GPU/driver, monitores, DPI, modo janela EVE, versão EVE) | Etapa (Seção) | Aprovação Parcial / Falha | Observações | Evidência |
+|-------------|-----------------------------------------------------------------------------------|---------------|----------------------------|-------------|-----------|
+| e3a1720 | Windows 11 Pro 26H2 build 26300; AMD Radeon RX 7600, driver 32.0.32015.7029 (17/10/2026); 2560x1080 + 1920x1080; DPI 96 (100%); EVE em janela 2560x1080; cliente TQ atual (launcher 1.17.8) | 2.1 Atualização imagem | **☑ Parcial** | Apenas a thumbnail do cliente em primeiro plano mostra conteúdo; as outras 6 ficam pretas. Repetido em 4 execuções. | `sha2-r1-01-normal.png`, `diag-fullscreen.png` |
+| e3a1720 | idem | 2.2 Minimizar/Restaurar | **☑ Parcial** | `Ctrl+F22` minimizou os 7/7 e as 7 thumbnails mantiveram o último quadro (sem thumbnail preta ao minimizar). Restaurar não devolve conteúdo às 6 não ativas. `Ctrl+F22` é minimizar-apenas por implementação (`MinimizeAllClients` → `MinimizeWindow`). | `sha2-r1-02-minimizado.png` |
+| e3a1720 | idem | 2.3 Fechar/Reabrir | **☐ Não executado** | Fechar cliente encerra sessão de jogo; fora do escopo desta execução. | — |
+| e3a1720 | idem | 2.4 Thumbnails restantes | **☑ Parcial** | Clique em thumbnail ativa o cliente correspondente (mudança de janela em primeiro plano confirmada). Com 6 de 7 sem conteúdo, hover/zoom e destaque ativo não puderam ser avaliados. | `gdi-sha2.log` |
+| e3a1720 | idem | 3.2 Sequência 6+1 (GDI/USER) | **☑ Falha** | Handles estáveis (GDI 75→75, USER 88→90, delta +2 em 40 trocas de ciclo, minimize/restore e 20 s ocioso), mas o cenário falha no objetivo: **1 de 7 previews com conteúdo**, 6 pretas. 3 rodadas idênticas neste build e 1 rodada com o binário da produção. | `sha2-r1-*`, `sha2-r2-*`, `sha2-r3-*`, `gdi-sha2.log` |
+| e3a1720 | idem | **Validação Real (Cliente EVE)** | **☑ Parcial** | **Executada; falha funcional reprodutível na captura de clientes não ativos.** | ver 4.1 |
 
 > **Legenda:**
 > - **Parcial**: Funciona mas com ressalvas (ex.: thumbnail preta ao minimizar, atualização mais lenta que a observada na sequência normal, flicker ocasional).
 > - **Falha**: Comportamento fora do especificado (crash, ghost thumbnail, vazamento GDI/USER contínuo, captura nula persistente).
 > - **Passou**: Todos os critérios de aceite atendidos.
+
+### 4.1 Execução de 13/11/2026
+
+**Método de verificação de conteúdo.** A checagem não pode usar a variância de toda a thumbnail: o rótulo laranja sobre fundo preto produz desvio alto (17 a 30) e faz uma thumbnail preta passar por "com conteúdo". A medição correta amostra apenas o corpo abaixo do rótulo (`y` a partir de 28 px) e classifica como preta quando média < 6 e desvio < 6. Também é preciso deduplicar por retângulo: cada thumbnail tem duas janelas sobrepostas (`EVE - <cliente>` e `PreviewOverlay`) no mesmo `GetWindowRect`, o que dobra a contagem se não for tratado.
+
+**Medições (7 clientes: 6 no monitor principal, 1 no secundário; 7 thumbnails, 14 janelas no mesmo retângulo):**
+
+| Estado | GDI | USER | Thumbs com conteúdo |
+|---|---|---|---|
+| Baseline | 75 | 87 | 1/7 |
+| Após 20 ciclos (10x F14 + 10x F13) | 75 | 88 | 1/7 |
+| Após `Ctrl+F22` (7/7 minimizados) | 75 | 88 | 1/7 (mantiveram o último quadro) |
+| Após restaurar | 75 | 88 | 1/7 |
+| Após clique em thumbnail | 78 | 90 | 1/7 |
+| Após 20 s ocioso | 75 | 90 | 1/7 |
+
+Delta: **GDI 0**, **USER +2**. O +3 em GDI e o +3 em USER medidos logo após o clique sintético voltaram ao patamar na leitura seguinte; não indicam crescimento persistente.
+
+**Achado principal.** A thumbnail com conteúdo é sempre a do cliente cuja janela está em primeiro plano — o "sortudo" muda junto com a ativação (no ciclo F14/F13 passou para outro cliente; após clicar em Alexa Rocker, foi para Alexa Rocker). Os clientes empilhados no mesmo monitor, e mesmo o cliente do monitor secundário quando não está em primeiro plano, aparecem pretos.
+
+**Reprodutibilidade.** 3 rodadas consecutivas com o build de `e3a1720` e 1 rodada com o binário que estava em produção (mesma config, hashes diferentes) deram o mesmo 1/7. Em uma execução anterior do mesmo dia (10:45), com o binário de produção e a mesma configuração, as 7 thumbnails mostraram conteúdo (`real-01-normal.png`) — não reproduzido depois. Ou seja: o resultado depende do estado das janelas dos clientes, não do build. Uma execução isolada não serve como aprovação.
+
+**Não executado.** 2.3 fechar/reabrir cliente; alternância manual de 5 min da seção 3.2; reinício do app no meio da alternância; julgamento visual de brilho/atraso/artefato.
+
+**Evidências.** `Documents\eve-o\evidencias\`: `sha2-r1-01-normal.png` (baseline), `sha2-r1-02-minimizado.png`, `sha2-r1-03-ocioso.png`, `sha2-r2-*`, `sha2-r3-*`, `prodchk-r1-*` (binário de produção), `diag-fullscreen.png` (tela inteira mostrando 6 thumbs pretas) e `real-01-normal.png` (execução das 10:45, quando as 7 tinham conteúdo).
+
 
 ---
 
@@ -176,7 +204,7 @@ Durante os passos acima, se houver **múltiplos clientes** (A–F + I):
 | **Métricas** | `GetGuiResources` do processo de teste (limites +16 GDI / +8 USER) | `GetGuiResources` ou Gerenciador de Tarefas para o `EVE-O-Preview.exe`, com comparação entre rodadas |
 | **Cobertura** | 30 warm-up + 1.000 capturas medidas; verifica mudança de pixels | Cenários reais: menus, minimizar, fechar/reabrir, 6+1 clients, DPI multi-monitor |
 | **O que NÃO cobre** | Superfície GPU real, DWM composição, fullscreen exclusivo, driver bugs, overclocks, anti-cheat | Stress contínuo de 1.000 capturas em loop apertado (o teste real é interativo) |
-| **Status no CI** | **Passa** (Windows CI, categoria `WindowsGdiStress`) | **PENDENTE** — requer execução manual |
+| **Status no CI** | **Passa** (Windows CI, categoria `WindowsGdiStress`) | **Executada em 13/11/2026 — parcial com falha funcional** (ver 4.1) |
 
 > **Importante:** O ensaio sintético usa uma janela WinForms. A validação no EVE precisa verificar se a captura funciona com a GPU, o driver e o modo de janela usados no teste.
 
@@ -206,15 +234,15 @@ As seguintes etapas **não podem ser demonstradas apenas pelo código** e exigem
 
 ## 8. Checklist Rápido para o Executor
 
-- [ ] SHA do commit registrado na tabela.
-- [ ] Cópia da configuração no diretório de teste, com o nome `EVE-O-Preview.json`.
-- [ ] `WineCompatibilityMode = true` no JSON de teste.
-- [ ] Cliente(s) EVE em **Windowed/Borderless** (não Fullscreen exclusivo).
-- [ ] Build **Release** do EVE-O Preview para Windows x64.
-- [ ] Task Manager com colunas GDI Objects / USER Objects visíveis.
-- [ ] Vídeo/screen recording iniciado (com timestamps).
-- [ ] Etapas da seção 2 preenchidas. Etapas opcionais da seção 3 registradas como executadas ou pendentes.
-- [ ] Instância habitual reaberta com a configuração original.
+- [x] SHA do commit registrado na tabela (`e3a1720`).
+- [x] Cópia da configuração no diretório de teste, com o nome `EVE-O-Preview.json`.
+- [x] `WineCompatibilityMode = true` no JSON de teste.
+- [x] Cliente(s) EVE em **Windowed/Borderless** (não Fullscreen exclusivo).
+- [x] Build **Release** do EVE-O Preview para Windows x64.
+- [x] GDI/USER lidos via `GetGuiResources` em script (equivalente às colunas do Task Manager).
+- [~] Evidência em imagem com timestamp (`sha2-r*`); sem gravação de vídeo.
+- [~] Etapas da seção 2: 2.1, 2.2 e 2.4 registradas; **2.3 não executada**.
+- [x] Instância habitual reaberta com a configuração original.
 
 ---
 
@@ -238,4 +266,4 @@ As seguintes etapas **não podem ser demonstradas apenas pelo código** e exigem
 
 ---
 
-> **Fim do roteiro.** Preencha a tabela da Seção 4 durante a execução. Qualquer **Falha** ou **Parcial** com impacto em estabilidade ou vazamento de handles bloqueia a promoção do modo de captura estática para produção. A validação real permanece **PENDENTE** até execução completa e assinatura do executor.
+> **Fim do roteiro.** A tabela da Seção 4 foi preenchida na execução de 13/11/2026 (seção 4.1). Pela regra acima, o resultado **Parcial/Falha** em 3.2 **bloqueia a promoção do modo de captura estática para produção**: apenas a thumbnail do cliente em primeiro plano recebe imagem, e isso é reprodutível em 4 execuções. Permanecem não executados: 2.3 (fechar/reabrir cliente), alternância manual de 5 min da seção 3.2 e o julgamento visual de brilho/atraso/artefato.
