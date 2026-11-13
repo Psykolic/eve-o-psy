@@ -465,7 +465,7 @@ namespace EveOPreview.Services
 			}
 
 			Size size = this._configuration.SpotlightSize;
-			Size clientSize = this._windowManager.GetClientSize(id);
+			Size clientSize = WindowGeometry.GetClientSize(id);
 			if (clientSize.Width <= 0 || clientSize.Height <= 0)
 			{
 				return size;
@@ -490,7 +490,7 @@ namespace EveOPreview.Services
 				return Rectangle.Empty;
 			}
 
-			return SpotlightRegionCalculator.ClampToClient(region, this._windowManager.GetClientSize(id));
+			return SpotlightRegionCalculator.ClampToClient(region, WindowGeometry.GetClientSize(id));
 		}
 
 		private void SpotlightViewRegionSelected(IntPtr id, Rectangle region)
@@ -505,7 +505,7 @@ namespace EveOPreview.Services
 				return;
 			}
 
-			Size clientSize = this._windowManager.GetClientSize(id);
+			Size clientSize = WindowGeometry.GetClientSize(id);
 			region = SpotlightRegionCalculator.ClampToClient(region, clientSize);
 
 			this._configuration.SetSpotlightRegion(view.Title, region);

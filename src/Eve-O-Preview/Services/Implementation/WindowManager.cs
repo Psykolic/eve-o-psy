@@ -274,16 +274,6 @@ namespace EveOPreview.Services.Implementation
 			return (windowRectangle.Left, windowRectangle.Top, windowRectangle.Right, windowRectangle.Bottom);
 		}
 
-		public Size GetClientSize(IntPtr handle)
-		{
-			if (!User32NativeMethods.GetClientRect(handle, out RECT clientRectangle))
-			{
-				return Size.Empty;
-			}
-
-			return new Size(clientRectangle.Right - clientRectangle.Left, clientRectangle.Bottom - clientRectangle.Top);
-		}
-
 		public bool IsWindowMaximized(IntPtr handle)
 		{
 			return User32NativeMethods.IsZoomed(handle);
