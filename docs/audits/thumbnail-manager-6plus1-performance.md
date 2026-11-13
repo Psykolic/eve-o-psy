@@ -54,11 +54,11 @@ If `UpdateThumbnailsList()` or `RefreshThumbnails()` exceeds the timer interval,
 
 | Location | Allocation Type | Frequency | Notes |
 |----------|----------------|-----------|-------|
-| `WindowManager.GetStaticThumbnail()` (`WindowManager.cs:298-431`) | `HDC`, `HBITMAP`, managed `Image` (`Image.FromHbitmap`) | Every forced refresh, per static thumbnail | All GDI objects are released in `finally`; the managed image is returned to the view and disposed there |
-| `WindowManager.CaptureCompositedWindow()` (`WindowManager.cs:472-500`) | One extra `Image` plus a second capture pass | Only when the `BitBlt` frame is blank | See 2.3 |
+| `WindowManager.GetStaticThumbnail()` (`WindowManager.cs:301-434`) | `HDC`, `HBITMAP`, managed `Image` (`Image.FromHbitmap`) | Every forced refresh, per static thumbnail | All GDI objects are released in `finally`; the managed image is returned to the view and disposed there |
+| `WindowManager.CaptureCompositedWindow()` (`WindowManager.cs:466-492`) | One extra `Image` plus a second capture pass | Only when the `BitBlt` frame is blank | See 2.3 |
 | `DwmThumbnail.Register()` (`DwmThumbnail.cs:39`) | Native DWM thumbnail handle (`HTHUMBNAIL`) | On client add / force refresh | 1 handle per live thumbnail |
 | `ThumbnailView.Refresh()` → `HighlightThumbnail()` → `ResizeThumbnail()` | Structs (`Point`, `Size`, `Rectangle`) | Every tick for visible thumbnails | Small, stack-allocated, low pressure |
-| `SnapThumbnailView()` (`ThumbnailManager.cs:807-859` in v1.0; now `:834-858`) | `Point[]` arrays (2×4 elements) | Every tick when hover active & location change dequeued | O(n) allocations per snapped thumbnail |
+| `SnapThumbnailView()` (`ThumbnailManager.cs:834-858`) | `Point[]` arrays (2×4 elements) | Every tick when hover active & location change dequeued | O(n) allocations per snapped thumbnail |
 | `UpdateClientLayouts()` | `ClientLayout` objects, tuples | Every tick when layout tracking enabled | 1 `ClientLayout` per managed client |
 
 ### 2.2 GC Pressure Estimate (Hypothetical)
@@ -76,7 +76,7 @@ For 6+1 **in static mode**, per second at 500 ms period (2 captures per second p
 Static capture is not a bare `BitBlt` anymore:
 
 1. `BitBlt` from the window DC (cheap path, correct for ordinary windows).
-2. If the resulting frame is **flat** — all-black or all-white, sampled on a 5×5 grid (`IsBlankSurface`, `WindowManager.cs:437-470`) — retry with `PrintWindow(PW_CLIENTONLY | PW_RENDERFULLCONTENT)`, which reads the DWM-composited content.
+2. If the resulting frame is **flat** — all-black or all-white, sampled on a 5×5 grid (`IsBlankSurface`, `WindowManager.cs:437-464`) — retry with `PrintWindow(PW_CLIENTONLY | PW_RENDERFULLCONTENT)`, which reads the DWM-composited content.
 3. If `PrintWindow` fails, the `BitBlt` image is kept.
 
 Cost implication for a 6+1 setup: 25 `GetPixel` samples per capture are constant, but every capture that lands on a DirectX client that is not in the foreground pays **two** full-size captures (2560×1080 `HBITMAP` allocated once, filled twice) plus a `PrintWindow` round-trip to the client. In the field runs that was the normal case for 6 of 7 clients whenever the layout is stacked.
@@ -109,7 +109,7 @@ This is the main new performance question opened by #46: correctness required th
 ### 3.2 Handle Leak Risk Points
 
 1. **`DwmThumbnail.Unregister()`** (`DwmThumbnail.cs:58-75`) swallows `ArgumentException` and `COMException`. If `DwmUnregisterThumbnail` fails, the native handle may leak until process exit. **Verified, still present.**
-2. **`GetStaticThumbnail()`** — v1.0 claimed "no `try/finally`; any exception leaks HDC/HBITMAP". **That is no longer true and was already wrong for `main`:** the method has nested `try/finally` blocks (`WindowManager.cs:313-431`) that attempt every cleanup step in order (restore bitmap → delete DC → delete object → release source DC), plus a `catch` that disposes a partially created image. `GdiFailureTests` covers each failure point (16 cases) and the cleanup ordering.
+2. **`GetStaticThumbnail()`** — v1.0 claimed "no `try/finally`; any exception leaks HDC/HBITMAP". **That is no longer true and was already wrong for `main`:** the method has nested `try/finally` blocks (`WindowManager.cs:313-427`) that attempt every cleanup step in order (restore bitmap → delete DC → delete object → release source DC), plus a `catch` that disposes a partially created image. `GdiFailureTests` covers each failure point (16 cases) and the cleanup ordering.
 3. **`ThumbnailView.Close()`** — closes the overlay and the form but does not explicitly dispose the `PictureBox` image; the managed `Image` from `FromHbitmap` is released by the GC. **Verified behavior; leak impact not measured.**
 
 ---
@@ -238,8 +238,8 @@ What this does **not** support:
 | 2 | Windows clamp is 300–1000 ms; Linux/Wine 10–1000 ms | **Verified** | `ThumbnailConfiguration.cs:544-548` |
 | 3 | Forced refresh occurs every 2nd tick | **Verified** | `ThumbnailManager.cs:27, 806-809` |
 | 4 | Static vs live is a **global** mode chosen by `EnableWineCompatibilityMode` | **Verified** | `ThumbnailViewFactory.cs:18-23` |
-| 5 | `GetStaticThumbnail` allocates GDI objects per call and releases them in `finally` | **Verified** | `WindowManager.cs:298-431`, `GdiFailureTests` |
-| 6 | Static capture retries with `PrintWindow` when the frame is blank | **Verified** | `WindowManager.cs:365-390, 437-500` |
+| 5 | `GetStaticThumbnail` allocates GDI objects per call and releases them in `finally` | **Verified** | `WindowManager.cs:301-434`, `GdiFailureTests` |
+| 6 | Static capture retries with `PrintWindow` when the frame is blank | **Verified** | `WindowManager.cs:379-391, 437-492` |
 | 7 | `DwmThumbnail.Unregister` swallows exceptions | **Verified** | `DwmThumbnail.cs:58-75` |
 | 8 | 6+1 uses 15 HWNDs (7 thumbnail + 7 overlay + 1 main) | **Verified** | `ThumbnailView` + `ThumbnailOverlay` are `Form` subclasses |
 | 9 | `SnapThumbnailView` is O(n²) per snapped view | **Verified** | `ThumbnailManager.cs:834-858` |
@@ -308,17 +308,17 @@ Windows-only paths are already covered by the `Windows behavior suite` (self-hos
 
 | File | Lines (`cdf4721`) | Purpose |
 |------|-------------------|---------|
-| `src/Eve-O-Preview/Services/Implementation/ThumbnailManager.cs` | 1224 | Core refresh loop, client tracking, layout, snap |
-| `src/Eve-O-Preview/Services/Interface/IThumbnailManager.cs` | 17 | Interface definition |
-| `src/Eve-O-Preview/View/Implementation/ThumbnailView.cs` | 802 | Base thumbnail form, overlay, events, zoom, highlight |
-| `src/Eve-O-Preview/View/Implementation/LiveThumbnailView.cs` | 69 | DWM live thumbnail wrapper |
-| `src/Eve-O-Preview/View/Implementation/StaticThumbnailView.cs` | 100 | GDI static thumbnail (whole static mode, not only login screens) |
-| `src/Eve-O-Preview/View/Implementation/ThumbnailOverlay.cs` | 308 | Overlay form (label, cycle indicator, fake preview) |
-| `src/Eve-O-Preview/View/Implementation/ThumbnailViewFactory.cs` | 26 | Factory that selects live vs static view |
-| `src/Eve-O-Preview/Services/Implementation/WindowManager.cs` | 432 | DWM/GDI interop, static capture, blank retry |
-| `src/Eve-O-Preview/Services/Interop/StaticThumbnailGdi.cs` | 49 | GDI + `PrintWindow` interop surface |
-| `src/Eve-O-Preview/Services/Implementation/DwmThumbnail.cs` | 103 | DWM thumbnail registration & property updates |
-| `src/Eve-O-Preview/Configuration/Implementation/ThumbnailConfiguration.cs` | 511 | All tunable parameters, clamping, persistence |
+| `src/Eve-O-Preview/Services/Implementation/ThumbnailManager.cs` | 1488 | Core refresh loop, client tracking, layout, snap |
+| `src/Eve-O-Preview/Services/Interface/IThumbnailManager.cs` | 20 | Interface definition |
+| `src/Eve-O-Preview/View/Implementation/ThumbnailView.cs` | 970 | Base thumbnail form, overlay, events, zoom, highlight |
+| `src/Eve-O-Preview/View/Implementation/LiveThumbnailView.cs` | 81 | DWM live thumbnail wrapper |
+| `src/Eve-O-Preview/View/Implementation/StaticThumbnailView.cs` | 116 | GDI static thumbnail (whole static mode, not only login screens) |
+| `src/Eve-O-Preview/View/Implementation/ThumbnailOverlay.cs` | 342 | Overlay form (label, cycle indicator, fake preview) |
+| `src/Eve-O-Preview/View/Implementation/ThumbnailViewFactory.cs` | 31 | Factory that selects live vs static view |
+| `src/Eve-O-Preview/Services/Implementation/WindowManager.cs` | 493 | DWM/GDI interop, static capture, blank retry |
+| `src/Eve-O-Preview/Services/Interop/StaticThumbnailGdi.cs` | 63 | GDI + `PrintWindow` interop surface |
+| `src/Eve-O-Preview/Services/Implementation/DwmThumbnail.cs` | 115 | DWM thumbnail registration & property updates |
+| `src/Eve-O-Preview/Configuration/Implementation/ThumbnailConfiguration.cs` | 622 | All tunable parameters, clamping, persistence |
 
 ---
 
