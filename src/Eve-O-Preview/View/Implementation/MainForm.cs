@@ -24,6 +24,11 @@ namespace EveOPreview.View
 		private Size _minimumSize;
 		private Size _maximumSize;
 		private string _iconName;
+		private readonly HashSet<string> _spotlightClients;
+		#endregion
+
+		#region Private constants
+		private const string DEFAULT_CLIENT_TITLE = "EVE";
 		#endregion
 
 		public MainForm(ApplicationContext context)
@@ -36,6 +41,7 @@ namespace EveOPreview.View
 			this._suppressEvents = false;
 			this._minimumSize = new Size(20, 20);
 			this._maximumSize = new Size(20, 20);
+			this._spotlightClients = new HashSet<string>();
 
 			InitializeComponent();
 
@@ -109,6 +115,25 @@ namespace EveOPreview.View
 				}
 
 				this.ThumbnailOpacityTrackBar.Value = barValue;
+			}
+		}
+
+		public double SpotlightOpacity
+		{
+			get => Math.Min(this.SpotlightOpacityTrackBar.Value / 100.00, 1.00);
+			set
+			{
+				int barValue = (int)(100.0 * value);
+				if (barValue > 100)
+				{
+					barValue = 100;
+				}
+				else if (barValue < 20)
+				{
+					barValue = 20;
+				}
+
+				this.SpotlightOpacityTrackBar.Value = barValue;
 			}
 		}
 
@@ -397,25 +422,86 @@ namespace EveOPreview.View
 		public void AddThumbnails(IList<IThumbnailDescription> thumbnails)
 		{
 			this.ThumbnailsList.BeginUpdate();
+			this.SpotlightClientsList.BeginUpdate();
 
 			foreach (IThumbnailDescription view in thumbnails)
 			{
 				this.ThumbnailsList.SetItemChecked(this.ThumbnailsList.Items.Add(view), view.IsDisabled);
+				this.AddSpotlightClientCandidate(view.Title);
 			}
 
+			this.SpotlightClientsList.EndUpdate();
 			this.ThumbnailsList.EndUpdate();
 		}
 
 		public void RemoveThumbnails(IList<IThumbnailDescription> thumbnails)
 		{
 			this.ThumbnailsList.BeginUpdate();
+			this.SpotlightClientsList.BeginUpdate();
 
 			foreach (IThumbnailDescription view in thumbnails)
 			{
 				this.ThumbnailsList.Items.Remove(view);
+				int index = this.SpotlightClientsList.Items.IndexOf(view.Title);
+				if (index >= 0)
+				{
+					this.SpotlightClientsList.Items.RemoveAt(index);
+				}
 			}
 
+			this.SpotlightClientsList.EndUpdate();
 			this.ThumbnailsList.EndUpdate();
+		}
+
+		public IList<string> SpotlightClients => new List<string>(this._spotlightClients);
+
+		public void SetSpotlightClients(IEnumerable<string> clients)
+		{
+			bool wasSuppressed = this._suppressEvents;
+			this._suppressEvents = true;
+
+			this._spotlightClients.Clear();
+			foreach (string client in clients)
+			{
+				this._spotlightClients.Add(client);
+			}
+
+			foreach (string title in this._spotlightClients)
+			{
+				this.AddSpotlightClientCandidate(title);
+			}
+
+			for (int i = 0; i < this.SpotlightClientsList.Items.Count; i++)
+			{
+				string title = this.SpotlightClientsList.Items[i] as string;
+				bool isSpotlight = title != null && this._spotlightClients.Contains(title);
+				this.SpotlightClientsList.SetItemChecked(i, isSpotlight);
+			}
+
+			this._suppressEvents = wasSuppressed;
+		}
+
+		public void SetSpotlightHotkeyInfo(string hotkeyInfo)
+		{
+			string hotkey = hotkeyInfo?.Replace("Control+", "Ctrl+") ?? string.Empty;
+
+			this.SpotlightHotkeyLabel.Text = string.IsNullOrEmpty(hotkey)
+				? "Drag edges to resize · Shift+right-drag to crop"
+				: $"{hotkey} toggle · drag edges · Shift+right-drag crop";
+		}
+
+		private void AddSpotlightClientCandidate(string title)
+		{
+			if (string.IsNullOrEmpty(title) || title == MainForm.DEFAULT_CLIENT_TITLE)
+			{
+				return;
+			}
+
+			if (this.SpotlightClientsList.Items.IndexOf(title) < 0)
+			{
+				int index = this.SpotlightClientsList.Items.Add(title);
+				this.SpotlightClientsList.SetItemChecked(index, this._spotlightClients.Contains(title));
+			}
 		}
 
 		public void RefreshZoomSettings()
@@ -438,6 +524,8 @@ namespace EveOPreview.View
 		public Action ThumbnailsSizeChanged { get; set; }
 
 		public Action<string> ThumbnailStateChanged { get; set; }
+
+		public Action SpotlightClientsChanged { get; set; }
 
 		public Action DocumentationLinkActivated { get; set; }
 
@@ -538,6 +626,30 @@ namespace EveOPreview.View
 			selectedItem.IsDisabled = (e.NewValue == CheckState.Checked);
 
 			this.ThumbnailStateChanged?.Invoke(selectedItem.Title);
+		}
+
+		private void SpotlightClientsList_ItemCheck_Handler(object sender, ItemCheckEventArgs e)
+		{
+			if (this._suppressEvents)
+			{
+				return;
+			}
+
+			if (!(this.SpotlightClientsList.Items[e.Index] is string title))
+			{
+				return;
+			}
+
+			if (e.NewValue == CheckState.Checked)
+			{
+				this._spotlightClients.Add(title);
+			}
+			else
+			{
+				this._spotlightClients.Remove(title);
+			}
+
+			this.SpotlightClientsChanged?.Invoke();
 		}
 
 		private void DocumentationLinkClicked_Handler(object sender, LinkLabelLinkClickedEventArgs e)

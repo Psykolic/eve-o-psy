@@ -56,8 +56,26 @@ namespace EveOPreview.View
 		private void RegisterThumbnail()
 		{
 			this._thumbnail = this.WindowManager.GetLiveThumbnail(this.Handle, this.Id);
+			if (!this.SourceRegion.IsEmpty)
+			{
+				this._thumbnail.SetSourceRegion(this.SourceRegion);
+			}
+
 			this._thumbnail.Move(this._startLocation.X, this._startLocation.Y, this._endLocation.X, this._endLocation.Y);
 			this._thumbnail.Update();
+		}
+
+		protected override void OnSourceRegionChanged()
+		{
+			this.Refresh(true);
+		}
+
+		public override void Close()
+		{
+			this._thumbnail?.Unregister();
+			this._thumbnail = null;
+
+			base.Close();
 		}
 	}
 }

@@ -53,6 +53,7 @@ namespace EveOPreview.View
 			TabPage ClientsTabPage;
 			Panel ClientsPanel;
 			Label ThumbnailsListLabel;
+			Label SpotlightListLabel;
 			TabPage AboutTabPage;
 			Panel AboutPanel;
 			Label CreditMaintLabel;
@@ -81,6 +82,8 @@ namespace EveOPreview.View
 			ThumbnailsWidthNumericEdit = new NumericUpDown();
 			ThumbnailsHeightNumericEdit = new NumericUpDown();
 			ThumbnailOpacityTrackBar = new TrackBar();
+			SpotlightOpacityLabel = new Label();
+			SpotlightOpacityTrackBar = new TrackBar();
 			ZoomTabPage = new TabPage();
 			ZoomAnchorPanel = new Panel();
 			ZoomAanchorNWRadioButton = new RadioButton();
@@ -126,6 +129,7 @@ namespace EveOPreview.View
 			ShowThumbnailOverlaysCheckBox = new CheckBox();
 			ShowThumbnailFramesCheckBox = new CheckBox();
 			ThumbnailsList = new CheckedListBox();
+			SpotlightClientsList = new CheckedListBox();
 			VersionLabel = new Label();
 			DocumentationLink = new LinkLabel();
 			NotifyIcon = new NotifyIcon(components);
@@ -151,6 +155,8 @@ namespace EveOPreview.View
 			ClientsTabPage = new TabPage();
 			ClientsPanel = new Panel();
 			ThumbnailsListLabel = new Label();
+			SpotlightListLabel = new Label();
+			SpotlightHotkeyLabel = new Label();
 			AboutTabPage = new TabPage();
 			AboutPanel = new Panel();
 			CreditMaintLabel = new Label();
@@ -418,6 +424,8 @@ namespace EveOPreview.View
 			ThumbnailSettingsPanel.Controls.Add(ThumbnailsHeightNumericEdit);
 			ThumbnailSettingsPanel.Controls.Add(ThumbnailOpacityTrackBar);
 			ThumbnailSettingsPanel.Controls.Add(OpacityLabel);
+			ThumbnailSettingsPanel.Controls.Add(SpotlightOpacityTrackBar);
+			ThumbnailSettingsPanel.Controls.Add(SpotlightOpacityLabel);
 			ThumbnailSettingsPanel.Dock = DockStyle.Fill;
 			ThumbnailSettingsPanel.Location = new Point(4, 4);
 			ThumbnailSettingsPanel.Margin = new Padding(4);
@@ -605,6 +613,31 @@ namespace EveOPreview.View
 			OpacityLabel.Size = new Size(48, 15);
 			OpacityLabel.TabIndex = 19;
 			OpacityLabel.Text = "Opacity";
+			// 
+			// SpotlightOpacityTrackBar
+			// 
+			SpotlightOpacityTrackBar.AutoSize = false;
+			SpotlightOpacityTrackBar.LargeChange = 10;
+			SpotlightOpacityTrackBar.Location = new Point(120, 188);
+			SpotlightOpacityTrackBar.Margin = new Padding(4);
+			SpotlightOpacityTrackBar.Maximum = 100;
+			SpotlightOpacityTrackBar.Minimum = 20;
+			SpotlightOpacityTrackBar.Name = "SpotlightOpacityTrackBar";
+			SpotlightOpacityTrackBar.Size = new Size(174, 25);
+			SpotlightOpacityTrackBar.TabIndex = 36;
+			SpotlightOpacityTrackBar.TickFrequency = 10;
+			SpotlightOpacityTrackBar.Value = 100;
+			SpotlightOpacityTrackBar.ValueChanged += OptionChanged_Handler;
+			// 
+			// SpotlightOpacityLabel
+			// 
+			SpotlightOpacityLabel.AutoSize = true;
+			SpotlightOpacityLabel.Location = new Point(9, 192);
+			SpotlightOpacityLabel.Margin = new Padding(4, 0, 4, 0);
+			SpotlightOpacityLabel.Name = "SpotlightOpacityLabel";
+			SpotlightOpacityLabel.Size = new Size(96, 15);
+			SpotlightOpacityLabel.TabIndex = 35;
+			SpotlightOpacityLabel.Text = "Spotlight opacity";
 			// 
 			// ZoomTabPage
 			// 
@@ -1235,6 +1268,9 @@ namespace EveOPreview.View
 			ClientsPanel.BorderStyle = BorderStyle.FixedSingle;
 			ClientsPanel.Controls.Add(ThumbnailsList);
 			ClientsPanel.Controls.Add(ThumbnailsListLabel);
+			ClientsPanel.Controls.Add(SpotlightClientsList);
+			ClientsPanel.Controls.Add(SpotlightListLabel);
+			ClientsPanel.Controls.Add(SpotlightHotkeyLabel);
 			ClientsPanel.Dock = DockStyle.Fill;
 			ClientsPanel.Location = new Point(0, 0);
 			ClientsPanel.Margin = new Padding(4);
@@ -1247,13 +1283,13 @@ namespace EveOPreview.View
 			ThumbnailsList.BackColor = SystemColors.Window;
 			ThumbnailsList.BorderStyle = BorderStyle.FixedSingle;
 			ThumbnailsList.CheckOnClick = true;
-			ThumbnailsList.Dock = DockStyle.Bottom;
 			ThumbnailsList.FormattingEnabled = true;
 			ThumbnailsList.IntegralHeight = false;
-			ThumbnailsList.Location = new Point(0, 34);
+			ThumbnailsList.Location = new Point(4, 32);
 			ThumbnailsList.Margin = new Padding(4);
 			ThumbnailsList.Name = "ThumbnailsList";
-			ThumbnailsList.Size = new Size(325, 207);
+			ThumbnailsList.Size = new Size(317, 82);
+			ThumbnailsList.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 			ThumbnailsList.TabIndex = 34;
 			ThumbnailsList.ItemCheck += ThumbnailsList_ItemCheck_Handler;
 			// 
@@ -1266,6 +1302,41 @@ namespace EveOPreview.View
 			ThumbnailsListLabel.Size = new Size(182, 15);
 			ThumbnailsListLabel.TabIndex = 33;
 			ThumbnailsListLabel.Text = "Thumbnails (check to force hide)";
+			// 
+			// SpotlightClientsList
+			// 
+			SpotlightClientsList.BackColor = SystemColors.Window;
+			SpotlightClientsList.BorderStyle = BorderStyle.FixedSingle;
+			SpotlightClientsList.CheckOnClick = true;
+			SpotlightClientsList.FormattingEnabled = true;
+			SpotlightClientsList.IntegralHeight = false;
+			SpotlightClientsList.Location = new Point(4, 141);
+			SpotlightClientsList.Margin = new Padding(4);
+			SpotlightClientsList.Name = "SpotlightClientsList";
+			SpotlightClientsList.Size = new Size(317, 82);
+			SpotlightClientsList.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+			SpotlightClientsList.TabIndex = 36;
+			SpotlightClientsList.ItemCheck += SpotlightClientsList_ItemCheck_Handler;
+			// 
+			// SpotlightListLabel
+			// 
+			SpotlightListLabel.AutoSize = true;
+			SpotlightListLabel.Location = new Point(9, 118);
+			SpotlightListLabel.Margin = new Padding(4, 0, 4, 0);
+			SpotlightListLabel.Name = "SpotlightListLabel";
+			SpotlightListLabel.Size = new Size(200, 15);
+			SpotlightListLabel.TabIndex = 35;
+			SpotlightListLabel.Text = "Spotlight (check to show enlarged)";
+			// 
+			// SpotlightHotkeyLabel
+			// 
+			SpotlightHotkeyLabel.AutoSize = true;
+			SpotlightHotkeyLabel.ForeColor = SystemColors.GrayText;
+			SpotlightHotkeyLabel.Location = new Point(9, 224);
+			SpotlightHotkeyLabel.Margin = new Padding(4, 0, 4, 0);
+			SpotlightHotkeyLabel.Name = "SpotlightHotkeyLabel";
+			SpotlightHotkeyLabel.Size = new Size(0, 15);
+			SpotlightHotkeyLabel.TabIndex = 37;
 			// 
 			// AboutTabPage
 			// 
@@ -1443,6 +1514,8 @@ namespace EveOPreview.View
 		private NumericUpDown ThumbnailsWidthNumericEdit;
 		private NumericUpDown ThumbnailsHeightNumericEdit;
 		private TrackBar ThumbnailOpacityTrackBar;
+		private Label SpotlightOpacityLabel;
+		private TrackBar SpotlightOpacityTrackBar;
 		private Panel ZoomAnchorPanel;
 		private RadioButton ZoomAanchorNWRadioButton;
 		private RadioButton ZoomAanchorNRadioButton;
@@ -1461,6 +1534,8 @@ namespace EveOPreview.View
 		private CheckBox ShowThumbnailOverlaysCheckBox;
 		private CheckBox ShowThumbnailFramesCheckBox;
 		private CheckedListBox ThumbnailsList;
+		private CheckedListBox SpotlightClientsList;
+		private Label SpotlightHotkeyLabel;
 		private LinkLabel DocumentationLink;
 		private Label VersionLabel;
 		private CheckBox MinimizeInactiveClientsCheckBox;

@@ -39,6 +39,12 @@ namespace EveOPreview.Configuration
 
 		double ThumbnailOpacity { get; set; }
 
+		List<string> SpotlightClients { get; set; }
+		Size SpotlightSize { get; set; }
+		double SpotlightOpacity { get; set; }
+		bool SpotlightAlwaysOnTop { get; set; }
+		List<string> ToggleSpotlightHotkeys { get; set; }
+
 		bool EnableClientLayoutTracking { get; set; }
 		bool HideActiveClientThumbnail { get; set; }
 		bool HideLoginClientThumbnail { get; set; }
@@ -85,6 +91,13 @@ namespace EveOPreview.Configuration
 
 		Point GetThumbnailLocation(string currentClient, string activeClient, Point defaultLocation);
 		Size GetThumbnailSize(string currentClient, string activeClient, Size defaultSize);
+		Size GetSpotlightSize(string currentClient, Size defaultSize);
+		void SetSpotlightSize(string currentClient, Size size);
+		Point GetSpotlightLocation(string currentClient, Point defaultLocation);
+		void SetSpotlightLocation(string currentClient, Point location);
+		Rectangle GetSpotlightRegion(string currentClient);
+		void SetSpotlightRegion(string currentClient, Rectangle region);
+		void RenameSpotlightClient(string oldTitle, string newTitle);
 		ZoomAnchor GetZoomAnchor(string currentClient, ZoomAnchor defaultZoomAnchor);
 		void SetThumbnailLocation(string currentClient, string activeClient, Point location);
 
