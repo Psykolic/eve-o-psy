@@ -18,6 +18,8 @@ namespace EveOPreview.View
 		private readonly Action<object, MouseEventArgs> _areaMouseUpAction;
 		private readonly Action<object, MouseEventArgs> _areaMouseMoveAction;
 		private bool _showOverlayText = true;
+		private Rectangle? _selectionRectangle;
+		private bool _showResizeGrip;
 		#endregion
 
 		public ThumbnailOverlay(Form owner,
@@ -62,6 +64,41 @@ namespace EveOPreview.View
 		public void SetOverlayLabel(string label)
 		{
 			this.OverlayLabel.Text = label;
+		}
+
+		public void SetSelectionMode(bool active)
+		{
+			this.SetMouseCursor(active ? Cursors.Cross : Cursors.Hand);
+		}
+
+		public void SetMouseCursor(Cursor cursor)
+		{
+			if (this.OverlayAreaPictureBox.Cursor != cursor)
+			{
+				this.OverlayAreaPictureBox.Cursor = cursor;
+			}
+
+			if (this.OverlayLabel.Cursor != cursor)
+			{
+				this.OverlayLabel.Cursor = cursor;
+			}
+
+			if (this.CycleGroupIndicator.Cursor != cursor)
+			{
+				this.CycleGroupIndicator.Cursor = cursor;
+			}
+		}
+
+		public void SetResizeGripVisible(bool visible)
+		{
+			this._showResizeGrip = visible;
+			this.OverlayAreaPictureBox.Invalidate();
+		}
+
+		public void SetSelectionRectangle(Rectangle? rectangle)
+		{
+			this._selectionRectangle = rectangle;
+			this.OverlayAreaPictureBox.Invalidate();
 		}
 		public void SetCycleGroupIndicator(bool displayCycleGroup, ZoomAnchor anchor)
 		{
@@ -249,6 +286,47 @@ namespace EveOPreview.View
 		private void OverlayAreaPictureBox_Paint(object sender, PaintEventArgs e)
 		{
 			if (this._showOverlayText) PaintDrawText(e, OverlayLabel);
+
+			if (this._selectionRectangle.HasValue)
+			{
+				Rectangle selection = this._selectionRectangle.Value;
+				using (Pen border = new Pen(Color.DeepSkyBlue, 2))
+				{
+					e.Graphics.DrawRectangle(border, selection);
+				}
+
+				Rectangle inner = Rectangle.Inflate(selection, -2, -2);
+				if (inner.Width > 2 && inner.Height > 2)
+				{
+					using (Pen border = new Pen(Color.White, 1))
+					{
+						e.Graphics.DrawRectangle(border, inner);
+					}
+				}
+			}
+
+			if (this._showResizeGrip)
+			{
+				int width = this.OverlayAreaPictureBox.Width;
+				int height = this.OverlayAreaPictureBox.Height;
+
+				using (Pen border = new Pen(Color.FromArgb(110, 220, 220, 220), 1))
+				{
+					e.Graphics.DrawRectangle(border, 0, 0, width - 1, height - 1);
+				}
+
+				const int gripSize = 9;
+				int gripX = width - gripSize - 4;
+				int gripY = height - gripSize - 4;
+
+				using (Pen grip = new Pen(Color.FromArgb(210, 255, 255, 255), 2))
+				{
+					for (int i = 0; i < 3; i++)
+					{
+						e.Graphics.DrawLine(grip, gripX + (i * 4), gripY + gripSize, gripX + gripSize, gripY + (i * 4));
+					}
+				}
+			}
 		}
 
 		protected override CreateParams CreateParams

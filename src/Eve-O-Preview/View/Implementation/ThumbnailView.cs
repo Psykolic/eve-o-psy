@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
@@ -14,6 +14,7 @@ namespace EveOPreview.View
 		#region Private constants
 		private const double OPACITY_THRESHOLD = 0.9;
 		private const double OPACITY_EPSILON = 0.1;
+		private const int RESIZE_BORDER_SIZE = 8;
 		#endregion
 
 		#region Private fields
@@ -32,8 +33,19 @@ namespace EveOPreview.View
 
 		private bool _isCustomMouseModeActive;
 
-		private double _opacity;
+		private bool _isRegionSelectionActive;
+		private Point _regionSelectionStart;
+		private Rectangle _regionSelectionRectangle;
+		private Rectangle _sourceRegion;
 
+		private bool _isSpotlight;
+		private bool _isResizing;
+		private SpotlightResizeEdge _resizeEdge;
+		private Point _resizeStartScreen;
+		private Rectangle _resizeStartBounds;
+
+		private double _opacity;
+		 
 		private DateTime _suppressResizeEventsTimestamp;
 		private Size _baseZoomSize;
 		private Point _baseZoomLocation;
@@ -90,7 +102,7 @@ namespace EveOPreview.View
 
 			SetDefaultBorderColor();
 			SetPreventPreviews();
-			this._overlay.EnableFakePreview(this._preventPreviews.Value, false, 0, SystemColors.Control);
+			this._overlay.EnableFakePreview(this.IsPreventPreviews(), false, 0, SystemColors.Control);
 			this._thumbnailManager = thumbnailManager;
 		}
 
@@ -108,7 +120,7 @@ namespace EveOPreview.View
 				this._overlay.SetPropertiesOverlayLabel(_config.OverlayLabelFont, _config.OverlayLabelColor, _config.OverlayLabelAnchor);
 				SetDefaultBorderColor();
 				SetPreventPreviews();
-				this._overlay.EnableFakePreview(this._preventPreviews.Value, false, 0, SystemColors.Control);
+				this._overlay.EnableFakePreview(this.IsPreventPreviews(), false, 0, SystemColors.Control);
 				this._overlay.SetCycleGroupIndicator(this.IsExcludedFromCycleGroup , _config.CycleGroupIndicatorAnchor);
 			}
 		}
@@ -117,6 +129,15 @@ namespace EveOPreview.View
 
 		public bool IsOverlayEnabled { get; set; }
 		public bool IsExcludedFromCycleGroup { get; set; }
+		public bool IsSpotlight
+		{
+			get => this._isSpotlight;
+			set
+			{
+				this._isSpotlight = value;
+				this._overlay.SetResizeGripVisible(value);
+			}
+		}
 		public ZoomAnchor ClientZoomAnchor { get; set; }
 
 		public Point ThumbnailLocation
@@ -135,6 +156,25 @@ namespace EveOPreview.View
 			set => this.ClientSize = value;
 		}
 
+		public Rectangle SourceRegion
+		{
+			get => this._sourceRegion;
+			set
+			{
+				if (this._sourceRegion == value)
+				{
+					return;
+				}
+
+				this._sourceRegion = value;
+				this.OnSourceRegionChanged();
+			}
+		}
+
+		protected virtual void OnSourceRegionChanged()
+		{
+		}
+
 		public Action<IntPtr> ThumbnailResized { get; set; }
 
 		public Action<IntPtr> ThumbnailMoved { get; set; }
@@ -147,6 +187,7 @@ namespace EveOPreview.View
 
 		public Action<IntPtr, bool> ThumbnailDeactivated { get; set; }
 		public Action<IntPtr> ThumbnailToggleCycleGroup { get; set; }
+		public Action<IntPtr, Rectangle> ThumbnailRegionSelected { get; set; }
 
 		private bool WindowMoved = false;
 
@@ -167,7 +208,7 @@ namespace EveOPreview.View
 
 		public bool IsPreventPreviews()
 		{
-			return this._preventPreviews.Value;
+			return !this.IsSpotlight && this._preventPreviews.Value;
 		}
 		public void SetPreventPreviews()
 		{
@@ -462,7 +503,7 @@ namespace EveOPreview.View
 			{
 				//No highlighting enabled, so no math required
 				this.ResizeThumbnail(baseWidth, baseHeight, 0, 0, 0, 0);
-				this._overlay.EnableFakePreview(this._preventPreviews.Value,false, 0, this._preventPreviewColor.Value);
+				this._overlay.EnableFakePreview(this.IsPreventPreviews(),false, 0, this._preventPreviewColor.Value);
 				return;
 			}
 
@@ -474,7 +515,7 @@ namespace EveOPreview.View
 			int highlightWidthLeft = (baseWidth - actualWidth) / 2;
 			int highlightWidthRight = baseWidth - actualWidth - highlightWidthLeft;
 
-			this._overlay.EnableFakePreview(this._preventPreviews.Value, true, this._highlightWidth, this._preventPreviewColor.Value);
+			this._overlay.EnableFakePreview(this.IsPreventPreviews(), true, this._highlightWidth, this._preventPreviewColor.Value);
 			this.ResizeThumbnail(this.ClientSize.Width, this.ClientSize.Height, this._highlightWidth, highlightWidthRight, this._highlightWidth, highlightWidthLeft);
 		}
 
@@ -489,7 +530,7 @@ namespace EveOPreview.View
 			// Only show overlay if enabled AND thumbnail is active/visible.
 			this._overlay.EnableOverlayLabel(this.IsOverlayEnabled && this.Visible);
 
-			if (!this._isOverlayVisible && ((this.IsOverlayEnabled && this.Visible) || this.IsPreventPreviews() ) && !_config.IsThumbnailDisabled(this.Title) )
+			if (!this._isOverlayVisible && ((this.IsOverlayEnabled && this.Visible) || this.IsPreventPreviews() ) && (this.IsSpotlight || !_config.IsThumbnailDisabled(this.Title)) )
 			{
 				// One-time action to show the Overlay before it is set up
 				// Otherwise its position won't be set
@@ -559,24 +600,76 @@ namespace EveOPreview.View
 
 		private void MouseLeave_Handler(object sender, EventArgs e)
 		{
+			if (this._isRegionSelectionActive)
+			{
+				return;
+			}
+
+			if (!this._isResizing)
+			{
+				this.SetMouseCursor(Cursors.Hand);
+			}
+
 			this.ThumbnailLostFocus?.Invoke(this.Id);
 		}
 
 		private void MouseDown_Handler(object sender, MouseEventArgs e)
 		{
-			this.MouseDownEventHandler(e.Button, Control.ModifierKeys);
+			Keys modifiers = Control.ModifierKeys;
+
+			if (this.IsSpotlight && e.Button == MouseButtons.Left && (modifiers == Keys.None || modifiers == Keys.Shift) && !this._config.LockThumbnailLocation)
+			{
+				SpotlightResizeEdge edge = this.GetResizeEdge(this.PointToClient(Control.MousePosition));
+				if (edge != SpotlightResizeEdge.None)
+				{
+					this.StartResize(edge);
+					return;
+				}
+			}
+
+			this.MouseDownEventHandler(e.Button, modifiers);
 		}
 
 		private void MouseMove_Handler(object sender, MouseEventArgs e)
 		{
+			if (this._isRegionSelectionActive)
+			{
+				this.UpdateRegionSelection();
+				return;
+			}
+
+			if (this._isResizing)
+			{
+				this.UpdateResize();
+				return;
+			}
+
 			if (this._isCustomMouseModeActive)
 			{
 				this.ProcessCustomMouseMode(e.Button.HasFlag(MouseButtons.Left), e.Button.HasFlag(MouseButtons.Right));
+				return;
+			}
+
+			if (this.IsSpotlight)
+			{
+				this.UpdateResizeCursor();
 			}
 		}
 
 		private void MouseUp_Handler(object sender, MouseEventArgs e)
 		{
+			if (this._isResizing && e.Button == MouseButtons.Left)
+			{
+				this.EndResize();
+				return;
+			}
+
+			if (this._isRegionSelectionActive && e.Button == MouseButtons.Right)
+			{
+				this.CompleteRegionSelection();
+				return;
+			}
+
 			if (e.Button == MouseButtons.Right)
 			{
 				this.ExitCustomMouseMode();
@@ -664,6 +757,182 @@ namespace EveOPreview.View
 		}
 		#endregion
 
+		#region Region selection
+		private void StartRegionSelection()
+		{
+			this._isRegionSelectionActive = true;
+			this._regionSelectionStart = this.PointToClient(Control.MousePosition);
+			this._regionSelectionRectangle = Rectangle.Empty;
+
+			this.Cursor = Cursors.Cross;
+			this._overlay.SetSelectionMode(true);
+			this._overlay.SetSelectionRectangle(Rectangle.Empty);
+		}
+
+		private void UpdateRegionSelection()
+		{
+			Point current = this.PointToClient(Control.MousePosition);
+			Rectangle selection = Rectangle.FromLTRB(
+				Math.Min(this._regionSelectionStart.X, current.X),
+				Math.Min(this._regionSelectionStart.Y, current.Y),
+				Math.Max(this._regionSelectionStart.X, current.X),
+				Math.Max(this._regionSelectionStart.Y, current.Y));
+
+			selection.Intersect(new Rectangle(Point.Empty, this.ClientSize));
+
+			this._regionSelectionRectangle = selection;
+			this._overlay.SetSelectionRectangle(selection);
+		}
+
+		private void CompleteRegionSelection()
+		{
+			this._isRegionSelectionActive = false;
+			this.Cursor = Cursors.Default;
+			this._overlay.SetSelectionMode(false);
+			this._overlay.SetSelectionRectangle(Rectangle.Empty);
+
+			Rectangle selection = this._regionSelectionRectangle;
+			this._regionSelectionRectangle = Rectangle.Empty;
+
+			// A simple Shift+right-click (no meaningful drag) resets the crop.
+			if (selection.Width < 6 || selection.Height < 6 || this.ClientSize.Width <= 0 || this.ClientSize.Height <= 0)
+			{
+				this.ThumbnailRegionSelected?.Invoke(this.Id, Rectangle.Empty);
+				return;
+			}
+
+			Size clientSize = this.WindowManager.GetClientSize(this.Id);
+			Rectangle displayedSource = this.SourceRegion;
+			if (displayedSource.IsEmpty)
+			{
+				if (clientSize.Width <= 0 || clientSize.Height <= 0)
+				{
+					return;
+				}
+
+				displayedSource = new Rectangle(Point.Empty, clientSize);
+			}
+
+			Rectangle region = SpotlightRegionCalculator.MapSelection(selection, displayedSource, this.ClientSize);
+			this.ThumbnailRegionSelected?.Invoke(this.Id, region);
+		}
+		#endregion
+
+		#region Window resize
+		private void StartResize(SpotlightResizeEdge edge)
+		{
+			this._isResizing = true;
+			this._resizeEdge = edge;
+			this._resizeStartScreen = Control.MousePosition;
+			this._resizeStartBounds = this.Bounds;
+
+			this.SetMouseCursor(ThumbnailView.GetResizeCursor(edge));
+		}
+
+		private void UpdateResize()
+		{
+			if (this._resizeEdge == SpotlightResizeEdge.None)
+			{
+				return;
+			}
+
+			Point mouse = Control.MousePosition;
+			int deltaX = mouse.X - this._resizeStartScreen.X;
+			int deltaY = mouse.Y - this._resizeStartScreen.Y;
+
+			bool freeResize = Control.ModifierKeys.HasFlag(Keys.Shift);
+
+			this.Bounds = SpotlightResizeCalculator.Calculate(
+				this._resizeStartBounds,
+				this._resizeEdge,
+				deltaX,
+				deltaY,
+				this.GetSourceAspect(),
+				freeResize,
+				new Size(160, 90));
+		}
+
+		private double GetSourceAspect()
+		{
+			Size sourceSize = this.SourceRegion.IsEmpty
+				? this.WindowManager.GetClientSize(this.Id)
+				: this.SourceRegion.Size;
+
+			return sourceSize.Width > 0 && sourceSize.Height > 0
+				? (double)sourceSize.Width / sourceSize.Height
+				: 0;
+		}
+
+		private void EndResize()
+		{
+			this._isResizing = false;
+			this._resizeEdge = SpotlightResizeEdge.None;
+			this.UpdateResizeCursor();
+		}
+
+		private void UpdateResizeCursor()
+		{
+			SpotlightResizeEdge edge = this._config.LockThumbnailLocation
+				? SpotlightResizeEdge.None
+				: this.GetResizeEdge(this.PointToClient(Control.MousePosition));
+
+			this.SetMouseCursor(edge == SpotlightResizeEdge.None ? Cursors.Hand : ThumbnailView.GetResizeCursor(edge));
+		}
+
+		private SpotlightResizeEdge GetResizeEdge(Point point)
+		{
+			int width = this.ClientSize.Width;
+			int height = this.ClientSize.Height;
+
+			bool left = point.X >= 0 && point.X <= ThumbnailView.RESIZE_BORDER_SIZE;
+			bool right = point.X >= width - ThumbnailView.RESIZE_BORDER_SIZE && point.X <= width;
+			bool top = point.Y >= 0 && point.Y <= ThumbnailView.RESIZE_BORDER_SIZE;
+			bool bottom = point.Y >= height - ThumbnailView.RESIZE_BORDER_SIZE && point.Y <= height;
+
+			if (left && top) return SpotlightResizeEdge.TopLeft;
+			if (right && top) return SpotlightResizeEdge.TopRight;
+			if (left && bottom) return SpotlightResizeEdge.BottomLeft;
+			if (right && bottom) return SpotlightResizeEdge.BottomRight;
+			if (left) return SpotlightResizeEdge.Left;
+			if (right) return SpotlightResizeEdge.Right;
+			if (top) return SpotlightResizeEdge.Top;
+			if (bottom) return SpotlightResizeEdge.Bottom;
+
+			return SpotlightResizeEdge.None;
+		}
+
+		private static Cursor GetResizeCursor(SpotlightResizeEdge edge)
+		{
+			switch (edge)
+			{
+				case SpotlightResizeEdge.Left:
+				case SpotlightResizeEdge.Right:
+					return Cursors.SizeWE;
+				case SpotlightResizeEdge.Top:
+				case SpotlightResizeEdge.Bottom:
+					return Cursors.SizeNS;
+				case SpotlightResizeEdge.TopLeft:
+				case SpotlightResizeEdge.BottomRight:
+					return Cursors.SizeNWSE;
+				case SpotlightResizeEdge.TopRight:
+				case SpotlightResizeEdge.BottomLeft:
+					return Cursors.SizeNESW;
+				default:
+					return Cursors.Hand;
+			}
+		}
+
+		private void SetMouseCursor(Cursor cursor)
+		{
+			if (this.Cursor != cursor)
+			{
+				this.Cursor = cursor;
+			}
+
+			this._overlay.SetMouseCursor(cursor);
+		}
+		#endregion
+
 		#region Custom GUI events
 		protected virtual void MouseDownEventHandler(MouseButtons mouseButtons, Keys modifierKeys)
 		{
@@ -685,6 +954,9 @@ namespace EveOPreview.View
 					this.Refresh(true);
 
 					oldWindow?.ClearBorder();
+					break;
+				case MouseButtons.Right when this.IsSpotlight && modifierKeys.HasFlag(Keys.Shift):
+					this.StartRegionSelection();
 					break;
 				case MouseButtons.Right:
 				case MouseButtons.Left | MouseButtons.Right:
