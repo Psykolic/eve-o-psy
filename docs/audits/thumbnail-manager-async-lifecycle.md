@@ -1,9 +1,9 @@
 # ThumbnailManager Async Lifecycle — Independent Audit
 
 **Scope**: `src/Eve-O-Preview/Services/Implementation/ThumbnailManager.cs`
-**Branch audited**: `main` (commit `3479ae7`)
-**Date**: 2026-11-11
-**Auditor**: Autonomous Claude Code (Linux pilot)
+**Branch audited**: `main` (commit `bc39c5a`, 2026-11-13). Original audit: commit `3479ae7`, 2026-11-11.
+**Auditor**: Autonomous Claude Code (Linux pilot); revised 2026-11-13 by OpenCode.
+**Revision**: v1.1 — corrected against today's code (see "What changed since 11/11" below).
 
 ---
 
@@ -15,22 +15,35 @@ This audit examines the asynchronous lifecycle of `ThumbnailManager`, focusing o
 2. **`ThumbnailActivated()`** — `Task.Run` + UI-thread continuation (line 676)
 3. **`Stop()`** — synchronous timer stop without awaiting in-flight work (line 286)
 
-**Bottom line**: The current design has **two P0 risks** (unobserved exceptions crashing the process; shutdown races leaking native handles) and **three P1 risks** (concurrent timer/activation races; missing cancellation; sync-context capture fragility). No production code changes are proposed here — this document establishes the evidence base for a future minimal refactor.
+**Bottom line (v1.1)**: the current design has **two P0 risks** (unobserved exceptions crashing the process; shutdown races leaking native handles) and **two P1 risks** (concurrent timer/activation races; missing cancellation). The v1.0 P1 about the continuation scheduler was **invalid and is already resolved in code**, and the Linux interval P2 was **invalid** — details in section 0. No production code changes are proposed here — this document establishes the evidence base for a future minimal refactor.
 
 ---
 
-## 1. Code Map — Relevant Files & Lines
+## 0. What changed since 11/11 (v1.1 corrections)
+
+| Item in v1.0 | Status now | Evidence |
+|---|---|---|
+| P1: `ThumbnailActivated` continuation captures a null scheduler | **Resolved, and the original analysis was wrong** | `uiScheduler` is captured **before** `Task.Run` (`ThumbnailManager.cs:1085`) and both continuations have `Trace.TraceError` handlers (`:1092`, `:1115`). Also, `TaskScheduler.FromCurrentSynchronizationContext()` in the `ContinueWith` **argument** is evaluated on the calling thread (UI), not inside the lambda, so the "captures null" claim did not hold even for the old shape. |
+| P2: Linux `ThumbnailRefreshPeriod` is unclamped | **Invalid** | Clamps exist per platform: 10–1000 ms on Linux (`ThumbnailConfiguration.cs:545`), 300–1000 ms on Windows (`:547`). |
+| `Stop()` only stops the timer | **Outdated** | `Stop()` also closes spotlight views (`ThumbnailManager.cs:609-617`), but still does not await in-flight async work. |
+| 3 `async void` methods | **Now 6** | `SpotlightViewRegionSelected` (`:506`), `SaveSpotlightConfiguration` (`:598`), `UpdateThumbnailsList` (`:626`), `PublishSpotlightRegionUpdated` (`:945`), `ThumbnailViewResized` (`:1155`), `RaiseThumbnailLocationUpdatedNotification` (`:1463`). **None** has a `try/catch`. |
+| Line map | **Stale** | File grew from ~1056 to 1488 lines; every line reference below was re-checked. |
+
+---
+
+## 1. Code Map — Relevant Files & Lines (re-checked on `bc39c5a`)
 
 | File | Lines | Role |
 |------|-------|------|
-| `ThumbnailManager.cs` | 279–284 | `Start()` — begins timer, calls `RefreshThumbnails()` synchronously |
-| `ThumbnailManager.cs` | 286–289 | `Stop()` — stops timer only |
-| `ThumbnailManager.cs` | 291–295 | `ThumbnailUpdateTimerTick` — calls `UpdateThumbnailsList()` + `RefreshThumbnails()` |
-| `ThumbnailManager.cs` | 297–397 | **`UpdateThumbnailsList()`** — `async void`, process diff + view create/destroy + `mediator.Publish` |
-| `ThumbnailManager.cs` | 399–554 | `RefreshThumbnails()` — synchronous, heavy UI work, mutates `_thumbnailViews` |
-| `ThumbnailManager.cs` | 676–695 | **`ThumbnailActivated()`** — `Task.Run(ActivateWindow)` → `ContinueWith(UI thread)` |
-| `ThumbnailManager.cs` | 732–746 | `ThumbnailViewResized()` — `async void` event handler, `mediator.Publish` |
-| `ThumbnailManager.cs` | 1032–1040 | `RaiseThumbnailLocationUpdatedNotification()` — `async void`, `mediator.Send` |
+| `ThumbnailManager.cs` | 603–607 | `Start()` — begins timer, calls `RefreshThumbnails()` synchronously |
+| `ThumbnailManager.cs` | 609–617 | `Stop()` — stops timer **and closes spotlight views** (no await) |
+| `ThumbnailManager.cs` | 619–623 | `ThumbnailUpdateTimerTick` — calls `UpdateThumbnailsList()` + `RefreshThumbnails()` |
+| `ThumbnailManager.cs` | 626–746 | **`UpdateThumbnailsList()`** — `async void`, process diff + view create/destroy + `mediator.Publish` |
+| `ThumbnailManager.cs` | 748–939 | `RefreshThumbnails()` — synchronous, heavy UI work, mutates `_thumbnailViews` |
+| `ThumbnailManager.cs` | 1070–1150 | **`ThumbnailActivated()`** — `Task.Run(ActivateWindow)` → `ContinueWith(UI scheduler)` |
+| `ThumbnailManager.cs` | 1155 | `ThumbnailViewResized()` — `async void` event handler, `mediator.Publish` |
+| `ThumbnailManager.cs` | 1463 | `RaiseThumbnailLocationUpdatedNotification()` — `async void`, `mediator.Send` |
+| `ThumbnailManager.cs` | 506, 598, 945 | Additional `async void` handlers (spotlight selection/save/publish) |
 | `IThumbnailManager.cs` | 7–8 | Interface: `Start()`/`Stop()` return `void` (no cancellation) |
 | `IProcessMonitor.cs` | 9 | `GetUpdatedProcesses(out added, out updated, out removed)` — synchronous |
 
@@ -41,9 +54,9 @@ This audit examines the asynchronous lifecycle of `ThumbnailManager`, focusing o
 ### P0 — Unobserved Exceptions in `async void` Methods Crash the Process
 
 **Evidence**:
-- `UpdateThumbnailsList()` (line 297) is `async void` — any exception escapes the `DispatcherTimer.Tick` handler and terminates the process (per .NET semantics for `async void`).
-- `ThumbnailViewResized()` (line 732) and `RaiseThumbnailLocationUpdatedNotification()` (line 1032) are also `async void` event handlers with identical semantics.
-- No `try/catch` inside these methods; `_mediator.Publish/Send` can throw (e.g., handler throws, pipeline behavior throws, DI scope disposed).
+- Six `async void` methods, **none with a `try/catch`**: `UpdateThumbnailsList()` (`:626`), `ThumbnailViewResized()` (`:1155`), `RaiseThumbnailLocationUpdatedNotification()` (`:1463`), `SpotlightViewRegionSelected()` (`:506`), `SaveSpotlightConfiguration()` (`:598`), `PublishSpotlightRegionUpdated()` (`:945`).
+- Any exception escaping one of them terminates the process (per .NET semantics for `async void`).
+- `_mediator.Publish/Send` can throw (handler throws, pipeline behavior throws, DI scope disposed), and so can the native interop inside `UpdateThumbnailsList`.
 
 **Failure scenario**:
 Timer ticks → `UpdateThumbnailsList()` calls `_processMonitor.GetUpdatedProcesses()` → native interop throws `SEHException` / `AccessViolationException` → process dies with no log, no restart.
@@ -55,9 +68,9 @@ Timer ticks → `UpdateThumbnailsList()` calls `_processMonitor.GetUpdatedProces
 ### P0 — `Stop()` Does Not Await In-Flight Async Work → Native Handle Leaks / Use-After-Free
 
 **Evidence**:
-- `Stop()` (line 286–289) only calls `_thumbnailUpdateTimer.Stop()`.
-- If `UpdateThumbnailsList()` is mid-await on `_mediator.Publish` (line 395), or `ThumbnailActivated()`'s `Task.Run` is executing `ActivateWindow` (line 680–686), `Stop()` returns immediately.
-- Subsequent `ThumbnailManager` disposal (or process shutdown) can finalize `_thumbnailViews` while callbacks still hold `IThumbnailView` references → `view.Close()` (line 390) races with `view.Refresh()` (line 549) or `ActivateWindow` (line 683/685).
+- `Stop()` (`:609-617`) stops the timer and closes spotlight views, but returns immediately.
+- If `UpdateThumbnailsList()` is mid-await on `_mediator.Publish`, or `ThumbnailActivated()`'s `Task.Run` is executing `ActivateWindow`, `Stop()` does not wait.
+- Subsequent disposal can finalize `_thumbnailViews` while callbacks still hold `IThumbnailView` references → `view.Close()` races with `view.Refresh()` or `ActivateWindow`.
 
 **Failure scenario**:
 User closes app → `Stop()` called → timer stops → `UpdateThumbnailsList()` still awaiting `mediator.Publish` → `_thumbnailViews` cleared by GC/finalizer → continuation accesses disposed `IThumbnailView` → `ObjectDisposedException` or native handle corruption.
@@ -95,37 +108,30 @@ App shutdown → `Stop()` → process exits while `mediator.Publish` waits for d
 
 ---
 
-### P1 — `ContinueWith(TaskScheduler.FromCurrentSynchronizationContext())` Fragility
+### P1 — ~~`ContinueWith(TaskScheduler.FromCurrentSynchronizationContext())` Fragility~~ (Resolved)
 
-**Evidence**:
-- `ThumbnailActivated()` (line 688–694) captures `SynchronizationContext.Current` at the point of `Task.Run` invocation (which runs on thread-pool, **no UI context**).
-- `TaskScheduler.FromCurrentSynchronizationContext()` inside the `ContinueWith` lambda captures the **thread-pool context (null)**, not the UI context.
-- Result: continuation runs on thread-pool, not UI thread → `SwitchActiveClient` / `RefreshThumbnails` execute off-UI-thread → cross-thread WPF/WinForms access → `InvalidOperationException` or silent corruption.
+**Status**: no longer applies, and the original analysis was wrong.
 
-**Code trace**:
+The current code captures the scheduler on the UI thread **before** starting the task (`ThumbnailManager.cs:1085`) and passes it to both continuations, which also carry `Trace.TraceError` handlers (`:1092`, `:1115`).
+
 ```csharp
-Task.Run(() => { ... })           // runs on thread-pool, SynchronizationContext.Current == null
-    .ContinueWith(t => { ... }, TaskScheduler.FromCurrentSynchronizationContext()); // captures null → TaskScheduler.Default
+var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext(); // UI thread, before Task.Run
+Task.Run(() => this._windowManager.ActivateWindow(...))
+    .ContinueWith(activation => { ... }, uiScheduler);
 ```
 
-**Failure scenario**:
-User clicks thumbnail → `ThumbnailActivated` fires → `ActivateWindow` succeeds → continuation runs on thread-pool → `RefreshThumbnails()` touches WPF `DispatcherTimer` / `IThumbnailView` → crash or visual glitch.
-
-**Mitigation status**: Bug. Correct pattern: capture `TaskScheduler ui = TaskScheduler.FromCurrentSynchronizationContext();` **before** `Task.Run`, then pass `ui` to `ContinueWith`.
+**Correction of the v1.0 reasoning**: `TaskScheduler.FromCurrentSynchronizationContext()` in the *argument* of `ContinueWith` is evaluated when `ContinueWith` is called — on the UI thread — not inside the continuation lambda. So the old shape would also have captured the UI context, unless the call had been inside the `Task.Run` body. The "captures null → runs on thread-pool" claim did not hold.
 
 ---
 
-### P2 — `DispatcherTimer` Interval Configuration Mismatch on Linux
+### ~~P2 — `DispatcherTimer` Interval Configuration Mismatch on Linux~~ (Invalid)
 
-**Evidence**:
-- Line 79: `configuration.ThumbnailRefreshPeriod` used directly for `DispatcherTimer.Interval`.
-- Windows: clamped to 300–1000 ms in `ThumbnailConfiguration.ApplyRestrictions()` (tested in `ThumbnailConfigurationTests.cs:43–59`).
-- Linux: no clamping applied (`#if LINUX` guards elsewhere but not here).
+**Status**: the claim does not hold. `ThumbnailRefreshPeriod` is clamped per platform:
 
-**Failure scenario**:
-Linux user sets `ThumbnailRefreshPeriod = 50` → timer fires every 50 ms → CPU spike, UI jank, `UpdateThumbnailsList()` re-entrancy pressure.
+- Linux: `ApplyRestrictions(..., 10, 1000)` at `ThumbnailConfiguration.cs:545`.
+- Windows: `ApplyRestrictions(..., 300, 1000)` at `ThumbnailConfiguration.cs:547`.
 
-**Mitigation status**: Configuration validation gap.
+A Linux user setting 50 ms gets 50 ms (allowed by the Linux range), not an unclamped value — the low floor is intentional for the Wine/Linux path. What remains true: the floor differs by platform (10 ms vs 300 ms), so a shared config can behave differently.
 
 ---
 
@@ -144,12 +150,12 @@ Low probability today; becomes real if P1 continuation bug manifests.
 
 | Risk | Status | Proof |
 |------|--------|-------|
-| P0: `async void` exceptions crash process | **Proven** | .NET spec: unhandled exception in `async void` → `ThreadPool.UnobservedTaskException` → process termination (unless legacy `ThrowUnobservedTaskExceptions` config). No try/catch in any `async void` method. |
-| P0: `Stop()` races with in-flight async | **Proven** | `Stop()` is synchronous void; `UpdateThumbnailsList()` awaits `mediator.Publish`; no join/await mechanism exists. |
+| P0: `async void` exceptions crash process | **Proven (still open)** | 6 `async void` methods, none with `try/catch` (lines in section 2). Unhandled exception in `async void` terminates the process. |
+| P0: `Stop()` races with in-flight async | **Proven (still open)** | `Stop()` is synchronous void; `UpdateThumbnailsList()` awaits `mediator.Publish`; no join/await mechanism exists. |
 | P1: Timer vs. activation race on `_thumbnailViews` | **Proven** | Two code paths (timer tick, activation continuation) mutate/iterate same `Dictionary` without lock. `_ignoreViewEvents` does not guard dictionary access. |
 | P1: Missing `CancellationToken` | **Proven** | Zero `CancellationToken` parameters in call chain from `Start()`/`Stop()` to `mediator` calls. |
-| P1: `ContinueWith` captures wrong scheduler | **Proven** | `Task.Run` executes on thread-pool where `SynchronizationContext.Current == null`; `FromCurrentSynchronizationContext()` inside lambda captures *that* null. |
-| P2: Linux timer interval unclamped | **Proven** | `ApplyRestrictions()` only called on Windows (test confirms); Linux `#if` absent at line 79. |
+| P1: `ContinueWith` captures wrong scheduler | **Invalid / resolved** | Scheduler is captured before `Task.Run` (`:1085`) and continuations log errors; the original reasoning about the argument evaluation was wrong. |
+| P2: Linux timer interval unclamped | **Invalid** | Clamps exist per platform (`ThumbnailConfiguration.cs:545` Linux, `:547` Windows). |
 | P2: `_hideThumbnailsDelay` thread-safety | **Hypothesised** | Only triggered if P1 continuation bug occurs. |
 
 ---
@@ -161,8 +167,8 @@ Low probability today; becomes real if P1 continuation bug manifests.
 | T-01 | `UpdateThumbnailsList()` throws in `GetUpdatedProcesses` | App stays alive, error logged, timer continues | **None** |
 | T-02 | `Stop()` called while `UpdateThumbnailsList()` awaiting `mediator.Publish` | `Stop()` returns after await completes; no use-after-free | **None** |
 | T-03 | Rapid thumbnail clicks during timer tick | No `InvalidOperationException`, no visual corruption | **None** |
-| T-04 | `ThumbnailActivated` continuation runs on UI thread | `SynchronizationContext.Current` is UI context in continuation | **None** (bug exists) |
-| T-05 | Linux: `ThumbnailRefreshPeriod = 50` → timer clamped to 300 ms | Timer interval ≥ 300 ms | **None** (config gap) |
+| T-04 | `ThumbnailActivated` continuation runs on UI thread | `SynchronizationContext.Current` is UI context in continuation | **Code fixed** (`:1085`), **no test** |
+| T-05 | Linux: `ThumbnailRefreshPeriod = 50` → timer stays ≥ 10 ms | Interval clamped to the 10–1000 ms Linux range | **Clamp exists** (`:545`), **no test** |
 | T-06 | `mediator.Publish` throws in `RaiseThumbnailLocationUpdatedNotification` | App stays alive, error logged | **None** |
 | T-07 | Shutdown: `Stop()` → `Dispose()` → finalizer → no handle leaks | Zero native handles leaked | Manual only |
 
@@ -174,11 +180,11 @@ Low probability today; becomes real if P1 continuation bug manifests.
 
 | Change | Files | Risk Addressed | Effort |
 |--------|-------|----------------|--------|
-| Wrap all `async void` bodies in `try/catch` → log + suppress | `ThumbnailManager.cs` (lines 297, 732, 1032) | P0 (crash) | Low |
+| Wrap all `async void` bodies in `try/catch` → log + suppress | `ThumbnailManager.cs` (lines 506, 598, 626, 945, 1155, 1463) | P0 (crash) | Low |
 | Change `Stop()` → `Task StopAsync(CancellationToken)`; propagate token to `mediator` calls | `IThumbnailManager.cs`, `ThumbnailManager.cs`, callers | P0 (shutdown race), P1 (cancellation) | Medium |
-| Capture UI `TaskScheduler` *before* `Task.Run` in `ThumbnailActivated` | `ThumbnailManager.cs:676–695` | P1 (wrong thread) | Low |
+| ~~Capture UI `TaskScheduler` *before* `Task.Run`~~ | — | P1 (wrong thread) | **Done** (`:1085`) |
 | Add `lock(_thumbnailViews)` in `RefreshThumbnails` + `ThumbnailActivated` continuation | `ThumbnailManager.cs` | P1 (dictionary race) | Low |
-| Move `ApplyRestrictions()` call to Linux path or make platform-agnostic | `ThumbnailConfiguration.cs` + `ThumbnailManager.cs:79` | P2 (timer interval) | Low |
+| ~~Fix Linux `ApplyRestrictions()`~~ | — | P2 (timer interval) | **Invalid** — clamp already there (`:545`) |
 | Add integration test harness mocking `IProcessMonitor`/`IWindowManager`/`IMediator` | `EveO.Tests/` (new) | All (regression) | Medium |
 
 ---
@@ -193,7 +199,7 @@ Low probability today; becomes real if P1 continuation bug manifests.
 1. Verify `ThumbnailActivated` continuation executes on UI thread (breakpoint in continuation, inspect `Thread.CurrentThread.ManagedThreadId` vs. UI thread ID).
 2. Stress-test 6+1 layout: start 6 clients + intel window, cycle rapidly, verify no `InvalidOperationException` or visual tearing.
 3. Verify `Stop()` during active thumbnail refresh does not leak `DwmThumbnail` handles (Process Explorer → handle count).
-4. Confirm Linux `ThumbnailRefreshPeriod` clamping works if config loaded on Linux.
+4. ~~Confirm Linux `ThumbnailRefreshPeriod` clamping works~~ — clamp confirmed in code (`ThumbnailConfiguration.cs:545`); still worth a unit test.
 
 ---
 
@@ -217,13 +223,14 @@ ThumbnailUpdateTimerTick (UI thread)
 
 ThumbnailActivated (UI thread, from view click)
   └─ Task.Run(() => _windowManager.ActivateWindow(...)) [thread-pool]
-      └─ ContinueWith(continuation, TaskScheduler.FromCurrentSynchronizationContext()) [BUG: captures null]
+      └─ ContinueWith(continuation, uiScheduler) [scheduler captured before Task.Run]
           ├─ SwitchActiveClient()
           ├─ UpdateClientLayouts()
           └─ RefreshThumbnails() [RE-ENTRANT!]
 
 Stop()
   └─ _thumbnailUpdateTimer.Stop() [NO AWAIT]
+  └─ CloseSpotlightView() for each spotlight
 ```
 
 ---
