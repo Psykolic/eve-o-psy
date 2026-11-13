@@ -503,7 +503,10 @@ namespace EveOPreview.Services
 			return SpotlightRegionCalculator.ClampToClient(region, WindowGeometry.GetClientSize(id));
 		}
 
-		private async void SpotlightViewRegionSelected(IntPtr id, Rectangle region)
+		private async void SpotlightViewRegionSelected(IntPtr id, Rectangle region) =>
+			await RunGuardedAsync(nameof(SpotlightViewRegionSelected), () => this.SpotlightViewRegionSelectedCore(id, region));
+
+		private async Task SpotlightViewRegionSelectedCore(IntPtr id, Rectangle region)
 		{
 			if (this._ignoreViewEvents)
 			{
@@ -595,10 +598,22 @@ namespace EveOPreview.Services
 			this.SaveSpotlightConfiguration();
 		}
 
-		private async void SaveSpotlightConfiguration()
+		// Exceção que escapa de um async void derruba o processo sem log. Todo handler
+		// async void do manager passa por aqui (issue #53 / auditoria TM-02).
+		internal static async Task RunGuardedAsync(string operation, Func<Task> action)
 		{
-			await this._mediator.Send(new SaveConfiguration());
+			try
+			{
+				await action();
+			}
+			catch (Exception error)
+			{
+				System.Diagnostics.Trace.TraceError($"{operation}: exceção assíncrona suprimida: {error}");
+			}
 		}
+
+		private async void SaveSpotlightConfiguration() =>
+			await RunGuardedAsync(nameof(SaveSpotlightConfiguration), async () => await this._mediator.Send(new SaveConfiguration()));
 
 		public void Start()
 		{
@@ -623,7 +638,10 @@ namespace EveOPreview.Services
 			this.RefreshThumbnails();
 		}
 
-		private async void UpdateThumbnailsList()
+		private async void UpdateThumbnailsList() =>
+			await RunGuardedAsync(nameof(UpdateThumbnailsList), this.UpdateThumbnailsListCore);
+
+		private async Task UpdateThumbnailsListCore()
 		{
 			this._processMonitor.GetUpdatedProcesses(out ICollection<IProcessInfo> addedProcesses, out ICollection<IProcessInfo> updatedProcesses, out ICollection<IProcessInfo> removedProcesses);
 
@@ -942,10 +960,8 @@ namespace EveOPreview.Services
 			this.PublishSpotlightRegionUpdated(title, Rectangle.Empty);
 		}
 
-		private async void PublishSpotlightRegionUpdated(string title, Rectangle region)
-		{
-			await this._mediator.Publish(new SpotlightRegionUpdated(title, region));
-		}
+		private async void PublishSpotlightRegionUpdated(string title, Rectangle region) =>
+			await RunGuardedAsync(nameof(PublishSpotlightRegionUpdated), async () => await this._mediator.Publish(new SpotlightRegionUpdated(title, region)));
 
 		public void UpdateThumbnailsSize()
 		{
@@ -1152,7 +1168,10 @@ namespace EveOPreview.Services
 		}
 
 
-		private async void ThumbnailViewResized(IntPtr id)
+		private async void ThumbnailViewResized(IntPtr id) =>
+			await RunGuardedAsync(nameof(ThumbnailViewResized), () => this.ThumbnailViewResizedCore(id));
+
+		private async Task ThumbnailViewResizedCore(IntPtr id)
 		{
 			if (this._ignoreViewEvents)
 			{
@@ -1460,7 +1479,10 @@ namespace EveOPreview.Services
 			}
 		}
 
-		private async void RaiseThumbnailLocationUpdatedNotification(string title)
+		private async void RaiseThumbnailLocationUpdatedNotification(string title) =>
+			await RunGuardedAsync(nameof(RaiseThumbnailLocationUpdatedNotification), () => this.RaiseThumbnailLocationUpdatedNotificationCore(title));
+
+		private async Task RaiseThumbnailLocationUpdatedNotificationCore(string title)
 		{
 			if (string.IsNullOrEmpty(title) || (title == ThumbnailManager.DEFAULT_CLIENT_TITLE))
 			{
