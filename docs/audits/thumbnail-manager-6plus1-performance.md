@@ -3,7 +3,7 @@
 **Document Version:** 1.1
 **Date:** 2026-11-11 (v1.0), revised 2026-11-13 (v1.1)
 **Scope:** Static code analysis of `ThumbnailManager` and related components for a 6+1 EVE Online multiboxing scenario (six regular clients on primary monitor, one intel/client on secondary monitor).
-**Methodology:** Verified code observations from reading source at `main` = `cdf4721`; hypotheses marked explicitly. GDI/USER handle observations from the 13/11/2026 field runs are quoted with provenance (section 5.3). No CPU, allocation or soak profiling was executed.
+**Methodology:** Verified code observations from reading source at `main` = `cdf4721`; hypotheses marked explicitly. GDI/USER handle observations from the 13/11/2026 field runs are quoted with provenance (section 5.3), and the capture-path timings in 2.3.1 are measured wall-clock medians. No allocation or soak profiling was executed.
 
 > **Changes in v1.1:** corrected the thumbnail mode model (static vs live is a **global** mode, not "login screens"), corrected the `GetStaticThumbnail` cleanup claim (it **does** have `try/finally`; the exception-path leak was fixed in the GDI series #3/#4/#5), documented the capture path as it stands after #46/#47/#48, added the field handle measurements, and refreshed file sizes.
 
@@ -81,7 +81,27 @@ Static capture is not a bare `BitBlt` anymore:
 
 Cost implication for a 6+1 setup: 25 `GetPixel` samples per capture are constant, but every capture that lands on a DirectX client that is not in the foreground pays **two** full-size captures (2560×1080 `HBITMAP` allocated once, filled twice) plus a `PrintWindow` round-trip to the client. In the field runs that was the normal case for 6 of 7 clients whenever the layout is stacked.
 
-This is the main new performance question opened by #46: correctness required the retry, but the retry is expensive and currently runs on every forced refresh for every covered client. **No CPU measurement of the retry exists yet** (see section 8).
+#### 2.3.1 Measured cost (13/11/2026)
+
+Timing of the exact path above, 5 iterations per client, median, on the 6+1 setup with 7 clients in windowed mode (`Documents\eve-o\evidencias\capture-cost.txt`):
+
+| Client | Client area | BitBlt | FromHbitmap | Blank check | `PrintWindow` | Content (mean luminance) |
+|---|---|---|---|---|---|---|
+| Alexa Rocker | 2544×1041 | 5.3 ms | 3.0 ms | 0.019 ms | 24.7 ms | 39.1 |
+| Dari Ordadre | 2544×1041 | 4.6 ms | 2.3 ms | 0.018 ms | 24.4 ms | 33.2 |
+| Don Psyduck (2nd monitor) | 1904×1041 | 4.6 ms | 1.6 ms | 0.017 ms | 27.9 ms | 23.8 |
+| IsTupiDo | 2544×1041 | 6.2 ms | 2.0 ms | 0.016 ms | 51.4 ms | 32.4 |
+| Natan Kronius | 2544×1041 | 4.8 ms | 2.1 ms | 0.018 ms | 30.8 ms | 34.4 |
+| Psykolic | 2544×1041 | 4.3 ms | 2.8 ms | 0.022 ms | 23.3 ms | 29.9 |
+| Red Spikee | 2544×1041 | 4.2 ms | 2.3 ms | 0.016 ms | 23.5 ms | 37.9 |
+
+Three findings, all measured:
+
+1. **`BitBlt` came back black for all 7 clients, in 5/5 iterations** (mean luminance 0.0). In a stacked layout the "cheap path" produces nothing, so **every** client pays the retry.
+2. **`PrintWindow` costs 23–51 ms per client** and succeeded 35/35 times, always with content. The blank-surface check itself is free (≤0.02 ms).
+3. **Per client, the whole capture costs 30–60 ms** (BitBlt + `FromHbitmap` + check + `PrintWindow` + second `FromHbitmap`). A full 7-client cycle is **~258 ms**, and since forced refresh runs once per second per client, that is **~258 ms/s of the UI thread (~26% of one core)** — worst case, if every client behaved like the slowest one, ~360 ms/s (~36%).
+
+Because `RefreshThumbnails` runs on the dispatcher thread, that cost lands as six consecutive ~30–60 ms stalls per second, not as background load. This is the concrete reason to bound the retry (see 7.2).
 
 ---
 
@@ -224,7 +244,7 @@ What this supports:
 
 What this does **not** support:
 
-- CPU cost of `PrintWindow` retries (the dominant new cost, section 2.3) — not measured.
+- CPU cost beyond the capture itself (layout, DWM property updates) — not measured.
 - Gen 0/1/2 behavior, timer drift, or behavior beyond a few minutes; no soak test.
 - DWM handle counts in live mode.
 
@@ -246,7 +266,7 @@ What this does **not** support:
 | 10 | Handles stay flat over 40 cycles + minimize/restore + idle (static mode) | **Observed (field)** | Section 5.3 |
 | 11 | Timer drift may occur at 300 ms under load | **Hypothesis** | `DispatcherTimer` behavior; no measurements |
 | 12 | Gen 0 GC pressure doubles at 300 ms vs 500 ms | **Hypothesis** | Proportional allocation rate; no profiling |
-| 13 | `PrintWindow` retries dominate CPU in static mode with stacked clients | **Hypothesis** | Cost is plausible from the call volume in 4.4; not measured |
+| 13 | `PrintWindow` retries dominate the cost of static capture in stacked layouts | **Observed (measured)** | 23–51 ms per client, 30–60 ms per full capture, ~258 ms/s of UI thread for 7 clients (section 2.3.1) |
 | 14 | Cross-monitor DPI causes DWM compositor overhead | **Hypothesis** | DWM architecture; no code evidence |
 | 15 | Hotkey registration per thumbnail adds USER handles | **Verified** | `HotkeyHandler.Register()` → `RegisterHotKey` |
 
@@ -271,7 +291,7 @@ What this does **not** support:
 | Area | Improvement | Effort | Status |
 |------|-------------|--------|--------|
 | `GetStaticThumbnail` | `try/finally` / `SafeHandle` cleanup | Low | **Done** (GDI series #3/#4/#5) |
-| Blank retry | Measure `PrintWindow` cost; consider caching the last good frame per client and retrying at a lower rate (e.g. every N forced refreshes) | Medium | **Open** — opened by #46 |
+| Blank retry | Throttle the retry for non-active clients (e.g. every 2nd forced refresh) and remember "this client is covered" to skip the useless `BitBlt` | Low | **Open** — measured in 2.3.1: `BitBlt` is black for all 7 clients, so the cheap path never pays off here |
 | `DwmThumbnail.Unregister` | Log swallowed exceptions; consider retry | Low | Open |
 | `SnapThumbnailView` | Spatial index (grid) for O(n log n) neighbor search | Medium | Open |
 | `RefreshThumbnails` | Split into `UpdateLayout()` + `UpdateVisibility()` + `UpdateContent()`; skip unchanged thumbnails via dirty flags | Medium | Open |
@@ -293,7 +313,7 @@ What this does **not** support:
 
 The following cannot be settled by reading code, and need the Windows self-hosted runner or the real client session:
 
-1. **`PrintWindow` retry cost (static mode)** — per-capture duration with 6 stacked clients, and whether it affects EVE frame rate. Measure with `dotnet-trace`/ETW around `CaptureCompositedWindow`, or by timing captures in a harness.
+1. **`PrintWindow` retry cost (static mode)** — measured for one machine and layout in 2.3.1 (~258 ms/s of UI thread with 7 clients). Still open: whether it visibly affects EVE frame rate, and the same measurement on a mid-range GPU / different driver.
 2. **Per-tick CPU time** (`RefreshThumbnails`) at 500 ms and 300 ms with 7 clients.
 3. **GC behavior** — Gen 0/1/2 rates at 500 ms vs 300 ms (`dotnet-counters`).
 4. **Soak test** — handle count over 30+ minutes with the retry path active, not just the short validation windows in 5.3.
@@ -326,7 +346,7 @@ Windows-only paths are already covered by the `Windows behavior suite` (self-hos
 
 The `ThumbnailManager` is **functional and stable at default settings** for a 6+1 workload. The remaining performance risks, in order:
 
-1. **`PrintWindow` retry cost in static mode** — correct for the #46 bug, but a second full-size capture per covered client per forced refresh was never measured.
+1. **`PrintWindow` retry cost in static mode** — measured in 2.3.1: 23–51 ms per client, ~258 ms/s of the UI thread with 7 clients, and `BitBlt` never produces content in a stacked layout. Bounding it (throttle for non-active clients, skip the useless `BitBlt`) is the follow-up.
 2. **Timer drift** if the refresh period is lowered to 300 ms without profiling.
 3. **Unlogged DWM unregistration failures** leaving orphaned thumbnail handles (live mode).
 4. **O(n²) snap logic** — harmless at n=7, a scaling ceiling beyond that.
