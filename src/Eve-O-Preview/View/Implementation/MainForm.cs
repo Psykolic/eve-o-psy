@@ -25,6 +25,7 @@ namespace EveOPreview.View
 		private Size _maximumSize;
 		private string _iconName;
 		private readonly HashSet<string> _spotlightClients;
+		private Rectangle _selectedSpotlightRegion;
 		#endregion
 
 		#region Private constants
@@ -455,6 +456,8 @@ namespace EveOPreview.View
 
 		public IList<string> SpotlightClients => new List<string>(this._spotlightClients);
 
+		public string SelectedSpotlightClient => this.SpotlightClientsList.SelectedItem as string;
+
 		public void SetSpotlightClients(IEnumerable<string> clients)
 		{
 			bool wasSuppressed = this._suppressEvents;
@@ -479,6 +482,7 @@ namespace EveOPreview.View
 			}
 
 			this._suppressEvents = wasSuppressed;
+			this.UpdateSpotlightRegionControls();
 		}
 
 		public void SetSpotlightHotkeyInfo(string hotkeyInfo)
@@ -488,6 +492,45 @@ namespace EveOPreview.View
 			this.SpotlightHotkeyLabel.Text = string.IsNullOrEmpty(hotkey)
 				? "Drag edges to resize · Shift+right-drag to crop"
 				: $"{hotkey} toggle · drag edges · Shift+right-drag crop";
+		}
+
+		public void SetSpotlightRegionInfo(string title, Rectangle region)
+		{
+			if (!string.Equals(title, this.SelectedSpotlightClient))
+			{
+				return;
+			}
+
+			this._selectedSpotlightRegion = region;
+			this.UpdateSpotlightRegionControls();
+		}
+
+		private void UpdateSpotlightRegionControls()
+		{
+			string title = this.SelectedSpotlightClient;
+			bool isSpotlight = !string.IsNullOrEmpty(title) && this._spotlightClients.Contains(title);
+			bool hasRegion = !this._selectedSpotlightRegion.IsEmpty;
+
+			this.ClearSpotlightRegionButton.Enabled = isSpotlight && hasRegion;
+
+			if (string.IsNullOrEmpty(title))
+			{
+				this.SpotlightRegionValueLabel.Text = "—";
+			}
+			else if (!isSpotlight)
+			{
+				this.SpotlightRegionValueLabel.Text = "Not a spotlight client";
+			}
+			else if (!hasRegion)
+			{
+				this.SpotlightRegionValueLabel.Text = "Full window";
+			}
+			else
+			{
+				this.SpotlightRegionValueLabel.Text =
+					$"{this._selectedSpotlightRegion.X}, {this._selectedSpotlightRegion.Y}, " +
+					$"{this._selectedSpotlightRegion.Width}, {this._selectedSpotlightRegion.Height}";
+			}
 		}
 
 		private void AddSpotlightClientCandidate(string title)
@@ -526,6 +569,10 @@ namespace EveOPreview.View
 		public Action<string> ThumbnailStateChanged { get; set; }
 
 		public Action SpotlightClientsChanged { get; set; }
+
+		public Action<string> SpotlightClientSelected { get; set; }
+
+		public Action<string> ClearSpotlightRegionRequested { get; set; }
 
 		public Action DocumentationLinkActivated { get; set; }
 
@@ -649,7 +696,25 @@ namespace EveOPreview.View
 				this._spotlightClients.Remove(title);
 			}
 
+			this.SpotlightClientsList.SelectedIndex = e.Index;
+			this.UpdateSpotlightRegionControls();
 			this.SpotlightClientsChanged?.Invoke();
+		}
+
+		private void SpotlightClientsList_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			this._selectedSpotlightRegion = Rectangle.Empty;
+			this.UpdateSpotlightRegionControls();
+			this.SpotlightClientSelected?.Invoke(this.SelectedSpotlightClient);
+		}
+
+		private void ClearSpotlightRegionButton_Click(object sender, EventArgs e)
+		{
+			string title = this.SelectedSpotlightClient;
+			if (!string.IsNullOrEmpty(title))
+			{
+				this.ClearSpotlightRegionRequested?.Invoke(title);
+			}
 		}
 
 		private void DocumentationLinkClicked_Handler(object sender, LinkLabelLinkClickedEventArgs e)

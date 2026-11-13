@@ -1,15 +1,16 @@
 # Spotlight mode (OnTopReplica-style enlarged previews)
 
-Spotlight mode lets you pick one or more EVE clients from the **Active Clients** tab and show each of them in its own large, independent, always-on-top preview window. This is useful when you want to keep one main alt (or a small set of alts) visible at a readable size while the remaining clients stay as small thumbnails.
+Spotlight mode lets you pick one or more EVE clients from the **Spotlight** tab and show each of them in its own large, independent, always-on-top preview window. This is useful when you want to keep one main alt (or a small set of alts) visible at a readable size while the remaining clients stay as small thumbnails.
 
 ## Using it
 
-1. Open the **Active Clients** tab.
-2. In the **Spotlight (check to show enlarged)** list, check one or more clients.
+1. Open the **Spotlight** tab.
+2. In the **Spotlight clients** list, check one or more clients.
 3. Each checked client gets its own enlarged preview window.
-4. Drag with the right mouse button to move a spotlight window. Drag any edge or corner to resize it; the cursor changes when you are over a resize zone. The bottom-right grip is a visual hint for the same resize area. By default the resize preserves the aspect ratio of the current crop; hold **Shift** while dragging to resize freely.
-5. Press the spotlight toggle hotkey (`Control+F12` by default) to show/hide all spotlight windows at once.
-6. Hold **Shift** and drag with the **right mouse button** over a spotlight to crop it to a region. Shift+right-click without dragging resets to the full window.
+4. Select a client in the list to see its current crop region. The **Clear crop** button removes the crop and restores the full-window aspect ratio.
+5. Drag with the right mouse button to move a spotlight window. Drag any edge or corner to resize it; the cursor changes when you are over a resize zone. The bottom-right grip is a visual hint for the same resize area. By default the resize preserves the aspect ratio of the current crop; hold **Shift** while dragging to resize freely.
+6. Press the spotlight toggle hotkey (`Control+F12` by default) to show/hide all spotlight windows at once.
+7. Hold **Shift** and drag with the **right mouse button** over a spotlight to crop it to a region. Shift+right-click without dragging resets to the full window.
 
 The client's normal thumbnail and its spotlight are independent: hiding the small thumbnail, hiding the active client's thumbnail, or checking a thumbnail in the "force hide" list does not hide the spotlight.
 
@@ -21,6 +22,7 @@ Region cropping keeps only the part of the client that matters (minimap, chat pa
 
 - **Shift + right-drag** on a spotlight selects the region.
 - **Shift + right-click** (without dragging) clears the crop and returns to the full client.
+- The **Spotlight** tab shows the current crop region for the selected client and provides a **Clear crop** button.
 - The spotlight window adjusts its aspect ratio to the selected region, so a square minimap gets a square preview instead of a stretched one.
 - Each client remembers its own crop region.
 - The crop is stored in `PerClientSpotlightRegion` and survives restarts.
@@ -31,8 +33,9 @@ A selection made on an already cropped spotlight is relative to the currently vi
 
 | Option | Where | Default | Description |
 | --- | --- | --- | --- |
-| Spotlight clients | Active Clients tab | none | Clients shown in spotlight windows. Multiple selection is supported. |
-| Spotlight opacity | Thumbnail tab | `1.0` | Independent opacity for spotlight windows (20% to 100%). |
+| Spotlight clients | Spotlight tab | none | Clients shown in spotlight windows. Multiple selection is supported. |
+| Spotlight opacity | Spotlight tab | `1.0` | Independent opacity for spotlight windows (20% to 100%). |
+| Clear crop | Spotlight tab | — | Removes the crop of the selected client and restores the full-window aspect ratio. |
 | Toggle hotkey | `EVE-O-Preview.json` → `ToggleSpotlightHotkeys` | `["Control+F12"]` | Hotkeys that show/hide all spotlight windows. |
 
 ## Per-client size and position

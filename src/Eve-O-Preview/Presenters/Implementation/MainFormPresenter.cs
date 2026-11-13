@@ -45,6 +45,8 @@ namespace EveOPreview.Presenters
 			this.View.ThumbnailsSizeChanged = this.UpdateThumbnailsSize;
 			this.View.ThumbnailStateChanged = this.UpdateThumbnailState;
 			this.View.SpotlightClientsChanged = this.UpdateSpotlightClients;
+			this.View.SpotlightClientSelected = this.UpdateSpotlightRegionInfo;
+			this.View.ClearSpotlightRegionRequested = this.ClearSpotlightRegion;
 			this.View.DocumentationLinkActivated = this.OpenDocumentationLink;
 			this.View.ApplicationExitRequested = this.ExitApplication;
 
@@ -295,6 +297,37 @@ namespace EveOPreview.Presenters
 			this._configurationStorage.Save();
 
 			await this._mediator.Publish(new SpotlightSettingsUpdated());
+
+			string selected = this.View.SelectedSpotlightClient;
+			if (!string.IsNullOrEmpty(selected))
+			{
+				this.View.SetSpotlightRegionInfo(selected, this._configuration.GetSpotlightRegion(selected));
+			}
+		}
+
+		private void UpdateSpotlightRegionInfo(string title)
+		{
+			if (string.IsNullOrEmpty(title))
+			{
+				return;
+			}
+
+			this.View.SetSpotlightRegionInfo(title, this._configuration.GetSpotlightRegion(title));
+		}
+
+		public void UpdateSpotlightRegionInfo(string title, Rectangle region)
+		{
+			this.View.SetSpotlightRegionInfo(title, region);
+		}
+
+		private async void ClearSpotlightRegion(string title)
+		{
+			if (string.IsNullOrEmpty(title))
+			{
+				return;
+			}
+
+			await this._mediator.Send(new ClearSpotlightRegion(title));
 		}
 
 		public void UpdateThumbnailSize(Size size)
