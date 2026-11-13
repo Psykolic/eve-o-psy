@@ -12,6 +12,9 @@ namespace EveOPreview.Services.Implementation
 		#region Private constants
 		private const int WINDOW_SIZE_THRESHOLD = 300;
 		private const int NO_ANIMATION = 0;
+		private const int BlankSurfaceSamples = 5;
+		private const int BlankDarkLuminance = 4;
+		private const int BlankBrightLuminance = 251;
 		#endregion
 
 		#region Private fields
@@ -348,12 +351,11 @@ namespace EveOPreview.Services.Implementation
 						}
 						selectSucceeded = true;
 
-						// Use PrintWindow (client-only + PW_RENDERFULLCONTENT) first: it captures
-						// the composited content, so overlapped DirectX windows still produce an
-						// image. BitBlt on the window DC returns black for EVE clients that are
-						// not in the foreground, which left all but the active thumbnail empty.
-						// BitBlt remains as the fallback for windows that reject PrintWindow.
-						if (!gdi.PrintWindow(source, destContext) && !gdi.BitBlt(destContext, width, height, sourceContext))
+						// BitBlt is the cheap path and works for ordinary windows. For DirectX
+						// clients that are not in the foreground the window DC holds an empty
+						// surface, so BitBlt returns a flat black (or white) frame - that left
+						// every thumbnail except the active one blank in multiboxing (#46).
+						if (!gdi.BitBlt(destContext, width, height, sourceContext))
 						{
 							return null;
 						}
@@ -371,6 +373,24 @@ namespace EveOPreview.Services.Implementation
 						selectSucceeded = false; // Prevent finally from restoring again
 
 						image = gdi.FromHbitmap(bitmap);
+
+						// The window DC had nothing: ask Windows for the composited content
+						// instead. PrintWindow is only used in this case, so environments where
+						// it returns a stale surface (non-interactive desktops, Wine) keep the
+						// BitBlt result unless it came back blank.
+						if (!IsBlankSurface(image))
+						{
+							return image;
+						}
+
+						var composited = CaptureCompositedWindow(gdi, source, destContext, bitmap, ref selectSucceeded);
+						if (composited == null)
+						{
+							return image;
+						}
+
+						image.Dispose();
+						image = composited;
 						return image;
 					}
 					finally
@@ -411,6 +431,63 @@ namespace EveOPreview.Services.Implementation
 				image?.Dispose();
 				throw;
 			}
+		}
+
+		// An empty DirectX surface reads back as a flat black or a flat white frame.
+		private static bool IsBlankSurface(Image image)
+		{
+			if (image is not Bitmap bitmap)
+			{
+				return false;
+			}
+
+			var width = bitmap.Width;
+			var height = bitmap.Height;
+			var allDark = true;
+			var allBright = true;
+
+			for (var column = 0; column < BlankSurfaceSamples; column++)
+			{
+				var x = Math.Min(width - 1, (int)((column + 0.5) * width / BlankSurfaceSamples));
+				for (var row = 0; row < BlankSurfaceSamples; row++)
+				{
+					var y = Math.Min(height - 1, (int)((row + 0.5) * height / BlankSurfaceSamples));
+					var color = bitmap.GetPixel(x, y);
+					var luminance = (color.R * 299 + color.G * 587 + color.B * 114) / 1000;
+
+					allDark &= luminance <= BlankDarkLuminance;
+					allBright &= luminance >= BlankBrightLuminance;
+				}
+			}
+
+			return allDark || allBright;
+		}
+
+		private static Image CaptureCompositedWindow(IStaticThumbnailGdi gdi, IntPtr source, IntPtr destination, IntPtr bitmap, ref bool selectSucceeded)
+		{
+			var previousBitmap = gdi.SelectObject(destination, bitmap);
+			if (previousBitmap == IntPtr.Zero || previousBitmap == new IntPtr(-1))
+			{
+				return null;
+			}
+
+			selectSucceeded = true;
+
+			if (!gdi.PrintWindow(source, destination))
+			{
+				// Outer cleanup restores the bitmap when this returns early.
+				return null;
+			}
+
+			var restoreResult = gdi.SelectObject(destination, previousBitmap);
+			if (restoreResult == IntPtr.Zero || restoreResult == new IntPtr(-1))
+			{
+				// selectSucceeded stays true: the outer cleanup restores and deletes.
+				return null;
+			}
+
+			selectSucceeded = false;
+			return gdi.FromHbitmap(bitmap);
 		}
 	}
 }
