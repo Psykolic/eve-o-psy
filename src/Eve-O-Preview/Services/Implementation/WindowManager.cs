@@ -348,7 +348,12 @@ namespace EveOPreview.Services.Implementation
 						}
 						selectSucceeded = true;
 
-						if (!gdi.BitBlt(destContext, width, height, sourceContext))
+						// Use PrintWindow (client-only + PW_RENDERFULLCONTENT) first: it captures
+						// the composited content, so overlapped DirectX windows still produce an
+						// image. BitBlt on the window DC returns black for EVE clients that are
+						// not in the foreground, which left all but the active thumbnail empty.
+						// BitBlt remains as the fallback for windows that reject PrintWindow.
+						if (!gdi.PrintWindow(source, destContext) && !gdi.BitBlt(destContext, width, height, sourceContext))
 						{
 							return null;
 						}

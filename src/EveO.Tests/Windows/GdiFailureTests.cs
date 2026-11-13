@@ -19,15 +19,16 @@ public sealed class GdiFailureTests
     [InlineData("CreateCompatibleBitmap", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap DeleteDC ReleaseDC")]
     [InlineData("SelectZero", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select DeleteDC DeleteObject ReleaseDC")]
     [InlineData("SelectInvalid", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("BitBlt", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("RestoreZero", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("RestoreInvalid", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("RestoreThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("FromHbitmap", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("DeleteDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("DeleteObjectThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("ReleaseDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("CleanupReturnsFailure", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("PrintWindow", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("BothCaptureFail", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow BitBlt Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("RestoreZero", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("RestoreInvalid", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("RestoreThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("FromHbitmap", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("DeleteDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("DeleteObjectThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("ReleaseDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("CleanupReturnsFailure", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
     public void GetStaticThumbnail_AttemptsCleanupInOrder(string failure, string expectedCalls)
     {
         using var gdi = new FakeGdi(failure);
@@ -47,7 +48,7 @@ public sealed class GdiFailureTests
         else
         {
             var image = WindowManager.GetStaticThumbnail(Window, gdi);
-            if (failure == "CleanupReturnsFailure")
+            if (failure is "CleanupReturnsFailure" or "PrintWindow")
             {
                 Assert.Same(gdi.Image, image);
             }
@@ -121,13 +122,21 @@ public sealed class GdiFailureTests
             };
         }
 
+        public bool PrintWindow(IntPtr window, IntPtr destination)
+        {
+            Assert.Equal(Window, window);
+            Assert.Equal(DestinationDc, destination);
+            Calls.Add("PrintWindow");
+            return failure != "PrintWindow" && failure != "BothCaptureFail";
+        }
+
         public bool BitBlt(IntPtr destination, int width, int height, IntPtr source)
         {
             Assert.Equal(DestinationDc, destination);
             Assert.Equal(SourceDc, source);
             Assert.Equal((640, 480), (width, height));
             Calls.Add("BitBlt");
-            return failure != "BitBlt";
+            return failure != "BothCaptureFail";
         }
 
         public Image FromHbitmap(IntPtr bitmap)

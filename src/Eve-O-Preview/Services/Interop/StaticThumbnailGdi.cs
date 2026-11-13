@@ -10,6 +10,7 @@ namespace EveOPreview.Services.Interop
 		IntPtr CreateCompatibleDC(IntPtr source);
 		IntPtr CreateCompatibleBitmap(IntPtr source, int width, int height);
 		IntPtr SelectObject(IntPtr context, IntPtr bitmap);
+		bool PrintWindow(IntPtr window, IntPtr destination);
 		bool BitBlt(IntPtr destination, int width, int height, IntPtr source);
 		Image FromHbitmap(IntPtr bitmap);
 		bool DeleteDC(IntPtr context);
@@ -40,6 +41,12 @@ namespace EveOPreview.Services.Interop
 
 		public bool BitBlt(IntPtr destination, int width, int height, IntPtr source) =>
 			Gdi32NativeMethods.BitBlt(destination, 0, 0, width, height, source, 0, 0, Gdi32NativeMethods.SRCCOPY);
+
+		public bool PrintWindow(IntPtr window, IntPtr destination) =>
+			User32NativeMethods.PrintWindow(
+				window,
+				destination,
+				User32NativeMethods.PW_CLIENTONLY | User32NativeMethods.PW_RENDERFULLCONTENT);
 
 		public Image FromHbitmap(IntPtr bitmap) =>
 			Image.FromHbitmap(bitmap);
