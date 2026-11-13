@@ -17,7 +17,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using EveOPreview.Configuration;
+using EveOPreview.Mediator.Messages;
 using EveOPreview.Services;
 using EveOPreview.View;
 using MediatR;
@@ -77,6 +79,13 @@ namespace EveO.Tests.Services
                 this.WindowManager.Setup(w => w.GetForegroundWindowHandle()).Returns(IntPtr.Zero);
                 this.Configuration.SetupGet(c => c.EnableClientLayoutTracking).Returns(false);
                 this.Configuration.SetupGet(c => c.MinimizeInactiveClients).Returns(false);
+
+                this.Mediator
+                    .Setup(m => m.Publish(It.IsAny<SpotlightRegionUpdated>(), It.IsAny<CancellationToken>()))
+                    .Returns(Task.CompletedTask);
+                this.Mediator
+                    .Setup(m => m.Send(It.IsAny<SaveConfiguration>(), It.IsAny<CancellationToken>()))
+                    .Returns(Task.FromResult(Unit.Value));
 
                 this.Manager = new ThumbnailManager(
                     this.Mediator.Object,
@@ -167,6 +176,23 @@ namespace EveO.Tests.Services
                     entered.Set();
                     release.Wait(ContinuationTimeout);
                 });
+        }
+
+        [Fact]
+        public void ClearSpotlightRegion_WithoutSpotlightView_ClearsConfigurationAndPublishesUpdate()
+        {
+            var harness = new TestHarness();
+
+            harness.Manager.ClearSpotlightRegion("EVE - Test");
+
+            harness.Configuration.Verify(
+                c => c.SetSpotlightRegion("EVE - Test", Rectangle.Empty),
+                Times.Once);
+            harness.Mediator.Verify(
+                m => m.Publish(
+                    It.Is<SpotlightRegionUpdated>(n => n.Title == "EVE - Test" && n.Region.IsEmpty),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
         }
 
         [Fact]

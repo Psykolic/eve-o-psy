@@ -9,5 +9,6 @@ namespace EveOPreview.Presenters
 		void RemoveThumbnails(IList<string> thumbnailTitles);
 
 		void UpdateThumbnailSize(Size size);
+		void UpdateSpotlightRegionInfo(string title, Rectangle region);
 	}
 }

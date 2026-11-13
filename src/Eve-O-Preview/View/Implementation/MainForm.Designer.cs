@@ -53,6 +53,8 @@ namespace EveOPreview.View
 			TabPage ClientsTabPage;
 			Panel ClientsPanel;
 			Label ThumbnailsListLabel;
+			TabPage SpotlightTabPage;
+			Panel SpotlightSettingsPanel;
 			Label SpotlightListLabel;
 			TabPage AboutTabPage;
 			Panel AboutPanel;
@@ -155,7 +157,12 @@ namespace EveOPreview.View
 			ClientsTabPage = new TabPage();
 			ClientsPanel = new Panel();
 			ThumbnailsListLabel = new Label();
+			SpotlightTabPage = new TabPage();
+			SpotlightSettingsPanel = new Panel();
 			SpotlightListLabel = new Label();
+			SpotlightRegionLabel = new Label();
+			SpotlightRegionValueLabel = new Label();
+			ClearSpotlightRegionButton = new Button();
 			SpotlightHotkeyLabel = new Label();
 			AboutTabPage = new TabPage();
 			AboutPanel = new Panel();
@@ -183,6 +190,8 @@ namespace EveOPreview.View
 			panel1.SuspendLayout();
 			ClientsTabPage.SuspendLayout();
 			ClientsPanel.SuspendLayout();
+			SpotlightTabPage.SuspendLayout();
+			SpotlightSettingsPanel.SuspendLayout();
 			AboutTabPage.SuspendLayout();
 			AboutPanel.SuspendLayout();
 			TrayMenu.SuspendLayout();
@@ -222,6 +231,7 @@ namespace EveOPreview.View
 			ContentTabControl.Controls.Add(ZoomTabPage);
 			ContentTabControl.Controls.Add(OverlayTabPage);
 			ContentTabControl.Controls.Add(ClientsTabPage);
+			ContentTabControl.Controls.Add(SpotlightTabPage);
 			ContentTabControl.Controls.Add(AboutTabPage);
 			ContentTabControl.Dock = DockStyle.Fill;
 			ContentTabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
@@ -424,8 +434,6 @@ namespace EveOPreview.View
 			ThumbnailSettingsPanel.Controls.Add(ThumbnailsHeightNumericEdit);
 			ThumbnailSettingsPanel.Controls.Add(ThumbnailOpacityTrackBar);
 			ThumbnailSettingsPanel.Controls.Add(OpacityLabel);
-			ThumbnailSettingsPanel.Controls.Add(SpotlightOpacityTrackBar);
-			ThumbnailSettingsPanel.Controls.Add(SpotlightOpacityLabel);
 			ThumbnailSettingsPanel.Dock = DockStyle.Fill;
 			ThumbnailSettingsPanel.Location = new Point(4, 4);
 			ThumbnailSettingsPanel.Margin = new Padding(4);
@@ -618,7 +626,7 @@ namespace EveOPreview.View
 			// 
 			SpotlightOpacityTrackBar.AutoSize = false;
 			SpotlightOpacityTrackBar.LargeChange = 10;
-			SpotlightOpacityTrackBar.Location = new Point(120, 188);
+			SpotlightOpacityTrackBar.Location = new Point(120, 124);
 			SpotlightOpacityTrackBar.Margin = new Padding(4);
 			SpotlightOpacityTrackBar.Maximum = 100;
 			SpotlightOpacityTrackBar.Minimum = 20;
@@ -632,7 +640,7 @@ namespace EveOPreview.View
 			// SpotlightOpacityLabel
 			// 
 			SpotlightOpacityLabel.AutoSize = true;
-			SpotlightOpacityLabel.Location = new Point(9, 192);
+			SpotlightOpacityLabel.Location = new Point(9, 128);
 			SpotlightOpacityLabel.Margin = new Padding(4, 0, 4, 0);
 			SpotlightOpacityLabel.Name = "SpotlightOpacityLabel";
 			SpotlightOpacityLabel.Size = new Size(96, 15);
@@ -1268,9 +1276,6 @@ namespace EveOPreview.View
 			ClientsPanel.BorderStyle = BorderStyle.FixedSingle;
 			ClientsPanel.Controls.Add(ThumbnailsList);
 			ClientsPanel.Controls.Add(ThumbnailsListLabel);
-			ClientsPanel.Controls.Add(SpotlightClientsList);
-			ClientsPanel.Controls.Add(SpotlightListLabel);
-			ClientsPanel.Controls.Add(SpotlightHotkeyLabel);
 			ClientsPanel.Dock = DockStyle.Fill;
 			ClientsPanel.Location = new Point(0, 0);
 			ClientsPanel.Margin = new Padding(4);
@@ -1288,7 +1293,7 @@ namespace EveOPreview.View
 			ThumbnailsList.Location = new Point(4, 32);
 			ThumbnailsList.Margin = new Padding(4);
 			ThumbnailsList.Name = "ThumbnailsList";
-			ThumbnailsList.Size = new Size(317, 82);
+			ThumbnailsList.Size = new Size(317, 190);
 			ThumbnailsList.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 			ThumbnailsList.TabIndex = 34;
 			ThumbnailsList.ItemCheck += ThumbnailsList_ItemCheck_Handler;
@@ -1303,6 +1308,36 @@ namespace EveOPreview.View
 			ThumbnailsListLabel.TabIndex = 33;
 			ThumbnailsListLabel.Text = "Thumbnails (check to force hide)";
 			// 
+			// SpotlightTabPage
+			// 
+			SpotlightTabPage.BackColor = SystemColors.Control;
+			SpotlightTabPage.Controls.Add(SpotlightSettingsPanel);
+			SpotlightTabPage.Location = new Point(124, 4);
+			SpotlightTabPage.Margin = new Padding(4);
+			SpotlightTabPage.Name = "SpotlightTabPage";
+			SpotlightTabPage.Padding = new Padding(4);
+			SpotlightTabPage.Size = new Size(327, 243);
+			SpotlightTabPage.TabIndex = 5;
+			SpotlightTabPage.Text = "Spotlight";
+			// 
+			// SpotlightSettingsPanel
+			// 
+			SpotlightSettingsPanel.BorderStyle = BorderStyle.FixedSingle;
+			SpotlightSettingsPanel.Controls.Add(SpotlightClientsList);
+			SpotlightSettingsPanel.Controls.Add(SpotlightListLabel);
+			SpotlightSettingsPanel.Controls.Add(SpotlightOpacityLabel);
+			SpotlightSettingsPanel.Controls.Add(SpotlightOpacityTrackBar);
+			SpotlightSettingsPanel.Controls.Add(SpotlightRegionLabel);
+			SpotlightSettingsPanel.Controls.Add(SpotlightRegionValueLabel);
+			SpotlightSettingsPanel.Controls.Add(ClearSpotlightRegionButton);
+			SpotlightSettingsPanel.Controls.Add(SpotlightHotkeyLabel);
+			SpotlightSettingsPanel.Dock = DockStyle.Fill;
+			SpotlightSettingsPanel.Location = new Point(4, 4);
+			SpotlightSettingsPanel.Margin = new Padding(4);
+			SpotlightSettingsPanel.Name = "SpotlightSettingsPanel";
+			SpotlightSettingsPanel.Size = new Size(319, 235);
+			SpotlightSettingsPanel.TabIndex = 38;
+			// 
 			// SpotlightClientsList
 			// 
 			SpotlightClientsList.BackColor = SystemColors.Window;
@@ -1310,29 +1345,63 @@ namespace EveOPreview.View
 			SpotlightClientsList.CheckOnClick = true;
 			SpotlightClientsList.FormattingEnabled = true;
 			SpotlightClientsList.IntegralHeight = false;
-			SpotlightClientsList.Location = new Point(4, 141);
+			SpotlightClientsList.Location = new Point(4, 30);
 			SpotlightClientsList.Margin = new Padding(4);
 			SpotlightClientsList.Name = "SpotlightClientsList";
-			SpotlightClientsList.Size = new Size(317, 82);
-			SpotlightClientsList.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+			SpotlightClientsList.Size = new Size(309, 92);
+			SpotlightClientsList.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 			SpotlightClientsList.TabIndex = 36;
 			SpotlightClientsList.ItemCheck += SpotlightClientsList_ItemCheck_Handler;
+			SpotlightClientsList.SelectedIndexChanged += SpotlightClientsList_SelectedIndexChanged;
 			// 
 			// SpotlightListLabel
 			// 
 			SpotlightListLabel.AutoSize = true;
-			SpotlightListLabel.Location = new Point(9, 118);
+			SpotlightListLabel.Location = new Point(9, 10);
 			SpotlightListLabel.Margin = new Padding(4, 0, 4, 0);
 			SpotlightListLabel.Name = "SpotlightListLabel";
 			SpotlightListLabel.Size = new Size(200, 15);
 			SpotlightListLabel.TabIndex = 35;
-			SpotlightListLabel.Text = "Spotlight (check to show enlarged)";
+			SpotlightListLabel.Text = "Spotlight clients (check to show enlarged)";
+			// 
+			// SpotlightRegionLabel
+			// 
+			SpotlightRegionLabel.AutoSize = true;
+			SpotlightRegionLabel.Location = new Point(9, 156);
+			SpotlightRegionLabel.Margin = new Padding(4, 0, 4, 0);
+			SpotlightRegionLabel.Name = "SpotlightRegionLabel";
+			SpotlightRegionLabel.Size = new Size(70, 15);
+			SpotlightRegionLabel.TabIndex = 39;
+			SpotlightRegionLabel.Text = "Crop region:";
+			// 
+			// SpotlightRegionValueLabel
+			// 
+			SpotlightRegionValueLabel.AutoSize = true;
+			SpotlightRegionValueLabel.ForeColor = SystemColors.GrayText;
+			SpotlightRegionValueLabel.Location = new Point(90, 156);
+			SpotlightRegionValueLabel.Margin = new Padding(4, 0, 4, 0);
+			SpotlightRegionValueLabel.Name = "SpotlightRegionValueLabel";
+			SpotlightRegionValueLabel.Size = new Size(16, 15);
+			SpotlightRegionValueLabel.TabIndex = 40;
+			SpotlightRegionValueLabel.Text = "—";
+			// 
+			// ClearSpotlightRegionButton
+			// 
+			ClearSpotlightRegionButton.Enabled = false;
+			ClearSpotlightRegionButton.Location = new Point(9, 178);
+			ClearSpotlightRegionButton.Margin = new Padding(4);
+			ClearSpotlightRegionButton.Name = "ClearSpotlightRegionButton";
+			ClearSpotlightRegionButton.Size = new Size(120, 25);
+			ClearSpotlightRegionButton.TabIndex = 41;
+			ClearSpotlightRegionButton.Text = "Clear crop";
+			ClearSpotlightRegionButton.UseVisualStyleBackColor = true;
+			ClearSpotlightRegionButton.Click += ClearSpotlightRegionButton_Click;
 			// 
 			// SpotlightHotkeyLabel
 			// 
 			SpotlightHotkeyLabel.AutoSize = true;
 			SpotlightHotkeyLabel.ForeColor = SystemColors.GrayText;
-			SpotlightHotkeyLabel.Location = new Point(9, 224);
+			SpotlightHotkeyLabel.Location = new Point(9, 210);
 			SpotlightHotkeyLabel.Margin = new Padding(4, 0, 4, 0);
 			SpotlightHotkeyLabel.Name = "SpotlightHotkeyLabel";
 			SpotlightHotkeyLabel.Size = new Size(0, 15);
@@ -1346,7 +1415,7 @@ namespace EveOPreview.View
 			AboutTabPage.Margin = new Padding(4);
 			AboutTabPage.Name = "AboutTabPage";
 			AboutTabPage.Size = new Size(327, 243);
-			AboutTabPage.TabIndex = 5;
+			AboutTabPage.TabIndex = 6;
 			AboutTabPage.Text = "About";
 			// 
 			// AboutPanel
@@ -1493,6 +1562,9 @@ namespace EveOPreview.View
 			ClientsTabPage.ResumeLayout(false);
 			ClientsPanel.ResumeLayout(false);
 			ClientsPanel.PerformLayout();
+			SpotlightTabPage.ResumeLayout(false);
+			SpotlightSettingsPanel.ResumeLayout(false);
+			SpotlightSettingsPanel.PerformLayout();
 			AboutTabPage.ResumeLayout(false);
 			AboutPanel.ResumeLayout(false);
 			AboutPanel.PerformLayout();
@@ -1516,6 +1588,9 @@ namespace EveOPreview.View
 		private TrackBar ThumbnailOpacityTrackBar;
 		private Label SpotlightOpacityLabel;
 		private TrackBar SpotlightOpacityTrackBar;
+		private Label SpotlightRegionLabel;
+		private Label SpotlightRegionValueLabel;
+		private Button ClearSpotlightRegionButton;
 		private Panel ZoomAnchorPanel;
 		private RadioButton ZoomAanchorNWRadioButton;
 		private RadioButton ZoomAanchorNRadioButton;

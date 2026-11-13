@@ -503,7 +503,7 @@ namespace EveOPreview.Services
 			return SpotlightRegionCalculator.ClampToClient(region, WindowGeometry.GetClientSize(id));
 		}
 
-		private void SpotlightViewRegionSelected(IntPtr id, Rectangle region)
+		private async void SpotlightViewRegionSelected(IntPtr id, Rectangle region)
 		{
 			if (this._ignoreViewEvents)
 			{
@@ -525,6 +525,8 @@ namespace EveOPreview.Services
 
 			this._configuration.SetSpotlightSize(view.Title, view.ThumbnailSize);
 			this.SaveSpotlightConfiguration();
+
+			await this._mediator.Publish(new SpotlightRegionUpdated(view.Title, region));
 		}
 
 		private void ResizeSpotlightToRegionAspect(IThumbnailView view, Rectangle region, Size clientSize)
@@ -916,6 +918,33 @@ namespace EveOPreview.Services
 			this.SaveSpotlightConfigurationIfNeeded();
 
 			this.EnableViewEvents();
+		}
+
+		public void ClearSpotlightRegion(string title)
+		{
+			if (string.IsNullOrEmpty(title))
+			{
+				return;
+			}
+
+			this._configuration.SetSpotlightRegion(title, Rectangle.Empty);
+
+			IThumbnailView view = this._spotlightViews.Values.FirstOrDefault(x => x.Title == title);
+			if (view != null)
+			{
+				Size clientSize = WindowGeometry.GetClientSize(view.Id);
+				this.ResizeSpotlightToRegionAspect(view, Rectangle.Empty, clientSize);
+				view.SourceRegion = Rectangle.Empty;
+				this._configuration.SetSpotlightSize(title, view.ThumbnailSize);
+			}
+
+			this.SaveSpotlightConfiguration();
+			this.PublishSpotlightRegionUpdated(title, Rectangle.Empty);
+		}
+
+		private async void PublishSpotlightRegionUpdated(string title, Rectangle region)
+		{
+			await this._mediator.Publish(new SpotlightRegionUpdated(title, region));
 		}
 
 		public void UpdateThumbnailsSize()
