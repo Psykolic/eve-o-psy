@@ -4,7 +4,7 @@
 >
 > **Status:** **Rascunho (Draft)** — apenas para revisão. Nenhuma automação de jogo, broadcast de entrada, injeção ou acesso à memória do cliente.
 >
-> **Validação real no cliente EVE:** **EXECUTADA EM 13/11/2026 — PARCIAL, COM FALHA FUNCIONAL.** A captura estática só renderiza a thumbnail do cliente em primeiro plano; com 6+1 clientes empilhados, as demais ficam pretas. Handles GDI/USER ficaram estáveis. Detalhes em [4.1](#41-execução-de-13112026). O ensaio sintético de 1.000 capturas (`GdiStressTests`) já passa no CI Windows; este documento cobre a validação **fora** do harness, com o cliente real.
+> **Validação real no cliente EVE:** **EXECUTADA EM 13/11/2026 — PARCIAL, COM FALHA FUNCIONAL, CORRIGIDA NO MESMO DIA.** A captura estática só renderizava a thumbnail do cliente em primeiro plano; com 6+1 clientes empilhados, as demais ficavam pretas. A causa foi corrigida (#46, PRs #47 e #48) e a revalidação deu **7/7 thumbnails com conteúdo** — ver [4.2](#42-correção-e-revalidação-13112026). Handles GDI/USER ficaram estáveis em ambas as execuções. O ensaio sintético de 1.000 capturas (`GdiStressTests`) já passa no CI Windows; este documento cobre a validação **fora** do harness, com o cliente real.
 
 ---
 
@@ -167,6 +167,8 @@ Execução de **13/11/2026**, build publicado com `dotnet publish` a partir de `
 > - **Falha**: Comportamento fora do especificado (crash, ghost thumbnail, vazamento GDI/USER contínuo, captura nula persistente).
 > - **Passou**: Todos os critérios de aceite atendidos.
 
+> **Nota:** os vereditos desta tabela são da execução de 13/11/2026 sobre `e3a1720`, **antes** da correção. O resultado após a correção está em [4.2](#42-correção-e-revalidação-13112026) — 7/7 thumbnails com conteúdo no cenário 6+1.
+
 ### 4.1 Execução de 13/11/2026
 
 **Método de verificação de conteúdo.** A checagem não pode usar a variância de toda a thumbnail: o rótulo laranja sobre fundo preto produz desvio alto (17 a 30) e faz uma thumbnail preta passar por "com conteúdo". A medição correta amostra apenas o corpo abaixo do rótulo (`y` a partir de 28 px) e classifica como preta quando média < 6 e desvio < 6. Também é preciso deduplicar por retângulo: cada thumbnail tem duas janelas sobrepostas (`EVE - <cliente>` e `PreviewOverlay`) no mesmo `GetWindowRect`, o que dobra a contagem se não for tratado.
@@ -192,6 +194,35 @@ Delta: **GDI 0**, **USER +2**. O +3 em GDI e o +3 em USER medidos logo após o c
 
 **Evidências.** `Documents\eve-o\evidencias\`: `sha2-r1-01-normal.png` (baseline), `sha2-r1-02-minimizado.png`, `sha2-r1-03-ocioso.png`, `sha2-r2-*`, `sha2-r3-*`, `prodchk-r1-*` (binário de produção), `diag-fullscreen.png` (tela inteira mostrando 6 thumbs pretas) e `real-01-normal.png` (execução das 10:45, quando as 7 tinham conteúdo).
 
+### 4.2 Correção e revalidação (13/11/2026)
+
+**Causa.** `WindowManager.GetStaticThumbnail` capturava com `BitBlt` do DC da janela. O EVE renderiza em DirectX e o DC de um cliente que não está em primeiro plano vem vazio, então apenas a thumbnail ativa recebia imagem.
+
+**Correção** (#46, PRs #47 e #48). A captura agora é:
+
+1. `BitBlt` (caminho normal, barato e correto em janela comum).
+2. Se a imagem vier **chapada** — preto puro ou branco puro, amostrado em grade 5x5 — tenta `PrintWindow` com `PW_CLIENTONLY | PW_RENDERFULLCONTENT`, que lê o conteúdo composto pela DWM.
+3. Se `PrintWindow` falhar, mantém a imagem do `BitBlt`.
+
+A ordem importa: em runner sem desktop interativo e no Wine, `PrintWindow` pode devolver quadro defasado. Usá-lo só depois de uma captura vazia mantém esses ambientes no caminho antigo.
+
+**Revalidação com 7 clientes (6+1), build do PR #48:**
+
+| Estado | GDI | USER | Thumbs com conteúdo |
+|---|---|---|---|
+| Baseline | 75 | 88 | **7/7** |
+| Após 20 ciclos (10x F14 + 10x F13) | 75 | 78 | **7/7** |
+| Após `Ctrl+F22` (7/7 minimizados) | 75 | 88 | **7/7** |
+| Após restaurar | 75 | 88 | **7/7** |
+| Após clique em thumbnail | 75–78 | 90–91 | **7/7** |
+| Após 20 s ocioso | 75–78 | 89–90 | **7/7** |
+
+Duas rodadas, 7/7 em todos os estados. Delta de handles: GDI 0, USER +2.
+
+**Evidências da revalidação.** `retry-r1-01-normal.png`, `retry-r1-02-minimizado.png`, `retry-r1-03-ocioso.png`, `retry-r2-*` e `fix-r1-01-normal.png` (primeira validação, com `PrintWindow` como caminho principal).
+
+**Status após a correção.** O critério de aceite da seção 3.1/3.2 passa no cenário 6+1, então o bloqueio de promoção do modo de captura estática cai. Continua não executado: 2.3 (fechar/reabrir cliente), alternância manual de 5 min e o julgamento visual de brilho/atraso/artefato.
+
 
 ---
 
@@ -204,7 +235,7 @@ Delta: **GDI 0**, **USER +2**. O +3 em GDI e o +3 em USER medidos logo após o c
 | **Métricas** | `GetGuiResources` do processo de teste (limites +16 GDI / +8 USER) | `GetGuiResources` ou Gerenciador de Tarefas para o `EVE-O-Preview.exe`, com comparação entre rodadas |
 | **Cobertura** | 30 warm-up + 1.000 capturas medidas; verifica mudança de pixels | Cenários reais: menus, minimizar, fechar/reabrir, 6+1 clients, DPI multi-monitor |
 | **O que NÃO cobre** | Superfície GPU real, DWM composição, fullscreen exclusivo, driver bugs, overclocks, anti-cheat | Stress contínuo de 1.000 capturas em loop apertado (o teste real é interativo) |
-| **Status no CI** | **Passa** (Windows CI, categoria `WindowsGdiStress`) | **Executada em 13/11/2026 — parcial com falha funcional** (ver 4.1) |
+| **Status no CI** | **Passa** (Windows CI, categoria `WindowsGdiStress`) | **Executada em 13/11/2026; falha corrigida e revalidada com 7/7** (ver 4.1 e 4.2) |
 
 > **Importante:** O ensaio sintético usa uma janela WinForms. A validação no EVE precisa verificar se a captura funciona com a GPU, o driver e o modo de janela usados no teste.
 
@@ -266,4 +297,4 @@ As seguintes etapas **não podem ser demonstradas apenas pelo código** e exigem
 
 ---
 
-> **Fim do roteiro.** A tabela da Seção 4 foi preenchida na execução de 13/11/2026 (seção 4.1). Pela regra acima, o resultado **Parcial/Falha** em 3.2 **bloqueia a promoção do modo de captura estática para produção**: apenas a thumbnail do cliente em primeiro plano recebe imagem, e isso é reprodutível em 4 execuções. Permanecem não executados: 2.3 (fechar/reabrir cliente), alternância manual de 5 min da seção 3.2 e o julgamento visual de brilho/atraso/artefato.
+> **Fim do roteiro.** A tabela da Seção 4 registra a primeira execução (13/11/2026, seção 4.1), com o resultado **Parcial/Falha** em 3.2 que, pela regra acima, bloqueava a promoção do modo de captura estática. O defeito foi corrigido no mesmo dia e a revalidação em 4.2 deu **7/7 thumbnails com conteúdo** no cenário 6+1, então o bloqueio está levantado. Permanecem não executados: 2.3 (fechar/reabrir cliente), alternância manual de 5 min da seção 3.2 e o julgamento visual de brilho/atraso/artefato.
