@@ -19,16 +19,17 @@ public sealed class GdiFailureTests
     [InlineData("CreateCompatibleBitmap", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap DeleteDC ReleaseDC")]
     [InlineData("SelectZero", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select DeleteDC DeleteObject ReleaseDC")]
     [InlineData("SelectInvalid", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("PrintWindow", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("BothCaptureFail", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow BitBlt Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("RestoreZero", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("RestoreInvalid", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("RestoreThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore Restore DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("FromHbitmap", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("DeleteDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("DeleteObjectThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("ReleaseDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
-    [InlineData("CleanupReturnsFailure", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("BitBlt", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("RestoreZero", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("RestoreInvalid", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("RestoreThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore Restore DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("FromHbitmap", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("DeleteDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("DeleteObjectThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("ReleaseDCThrows", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("CleanupReturnsFailure", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("BitBltBlank", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap Select PrintWindow Restore FromHbitmap DeleteDC DeleteObject ReleaseDC")]
+    [InlineData("BitBltBlankPrintWindowFails", "GetDC GetClientRect CreateCompatibleDC CreateCompatibleBitmap Select BitBlt Restore FromHbitmap Select PrintWindow Restore DeleteDC DeleteObject ReleaseDC")]
     public void GetStaticThumbnail_AttemptsCleanupInOrder(string failure, string expectedCalls)
     {
         using var gdi = new FakeGdi(failure);
@@ -48,7 +49,7 @@ public sealed class GdiFailureTests
         else
         {
             var image = WindowManager.GetStaticThumbnail(Window, gdi);
-            if (failure is "CleanupReturnsFailure" or "PrintWindow")
+            if (failure is "CleanupReturnsFailure" or "BitBltBlank" or "BitBltBlankPrintWindowFails")
             {
                 Assert.Same(gdi.Image, image);
             }
@@ -65,6 +66,7 @@ public sealed class GdiFailureTests
     {
         public readonly List<string> Calls = [];
         public readonly InvalidOperationException Error = new(failure);
+        private int _bitmaps;
         public Image? Image { get; private set; }
 
         public IntPtr GetDC(IntPtr window)
@@ -127,7 +129,7 @@ public sealed class GdiFailureTests
             Assert.Equal(Window, window);
             Assert.Equal(DestinationDc, destination);
             Calls.Add("PrintWindow");
-            return failure != "PrintWindow" && failure != "BothCaptureFail";
+            return failure != "BitBltBlankPrintWindowFails";
         }
 
         public bool BitBlt(IntPtr destination, int width, int height, IntPtr source)
@@ -136,7 +138,7 @@ public sealed class GdiFailureTests
             Assert.Equal(SourceDc, source);
             Assert.Equal((640, 480), (width, height));
             Calls.Add("BitBlt");
-            return failure != "BothCaptureFail";
+            return failure != "BitBlt";
         }
 
         public Image FromHbitmap(IntPtr bitmap)
@@ -148,7 +150,15 @@ public sealed class GdiFailureTests
                 throw Error;
             }
 
-            return Image = new Bitmap(1, 1);
+            _bitmaps++;
+            var blank = failure is "BitBltBlank" or "BitBltBlankPrintWindowFails" && _bitmaps == 1;
+            var created = new Bitmap(1, 1);
+            using (var graphics = Graphics.FromImage(created))
+            {
+                graphics.Clear(blank ? Color.Black : Color.Gray);
+            }
+
+            return Image = created;
         }
 
         public bool DeleteDC(IntPtr context)

@@ -150,12 +150,12 @@ public sealed class GdiStressTests
     {
         Color expected = (iteration & 1) == 0 ? Color.FromArgb(20, 120, 220) : Color.FromArgb(220, 70, 30);
 
-        // Paint through the window's own paint cycle. The static capture prefers
-        // PrintWindow (which replays WM_PRINT/WM_PAINT) and falls back to BitBlt, so a
-        // color written straight into the DC would only be visible to the BitBlt path.
-        window.BackColor = expected;
-        window.Refresh();
-        Application.DoEvents();
+        // Win32/GDI drawing is intentional: BitBlt from a DWM/GPU game surface
+        // may be unsupported even when native resource ownership is correct.
+        using (Graphics graphics = window.CreateGraphics())
+        {
+            graphics.Clear(expected);
+        }
 
         using Image? image = manager.GetStaticThumbnail(window.Handle);
         Assert.NotNull(image);
