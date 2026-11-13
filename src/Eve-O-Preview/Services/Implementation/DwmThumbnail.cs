@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using EveOPreview.Services.Interop;
 
@@ -77,6 +78,17 @@ namespace EveOPreview.Services.Implementation
 		public void Move(int left, int top, int right, int bottom)
 		{
 			this._properties.rcDestination = new RECT(left, top, right, bottom);
+		}
+
+		public void SetSourceRegion(Rectangle region)
+		{
+			if (region.Width <= 0 || region.Height <= 0)
+			{
+				return;
+			}
+
+			this._properties.rcSource = new RECT(region.Left, region.Top, region.Right, region.Bottom);
+			this._properties.dwFlags |= DWM_TNP_CONSTANTS.DWM_TNP_RECTSOURCE;
 		}
 
 		public void Update()

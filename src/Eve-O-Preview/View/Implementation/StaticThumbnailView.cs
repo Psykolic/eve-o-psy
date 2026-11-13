@@ -37,10 +37,45 @@ namespace EveOPreview.View
 			var thumbnail = this.WindowManager.GetStaticThumbnail(this.Id);
 			if (thumbnail != null)
 			{
+				var displayImage = this.CropThumbnail(thumbnail);
 				var oldImage = this._thumbnail.Image;
-				this._thumbnail.Image = thumbnail;
+				this._thumbnail.Image = displayImage;
 				oldImage?.Dispose();
 			}
+		}
+
+		private Image CropThumbnail(Image image)
+		{
+			Rectangle region = this.SourceRegion;
+			if (region.IsEmpty)
+			{
+				return image;
+			}
+
+			region.Intersect(new Rectangle(Point.Empty, image.Size));
+			if (region.Width < 1 || region.Height < 1)
+			{
+				return image;
+			}
+
+			Bitmap cropped = new Bitmap(region.Width, region.Height);
+			using (Graphics graphics = Graphics.FromImage(cropped))
+			{
+				graphics.DrawImage(
+					image,
+					new Rectangle(0, 0, region.Width, region.Height),
+					region,
+					GraphicsUnit.Pixel);
+			}
+
+			image.Dispose();
+
+			return cropped;
+		}
+
+		protected override void OnSourceRegionChanged()
+		{
+			this.Refresh(true);
 		}
 
 		protected override void ResizeThumbnail(int baseWidth, int baseHeight, int highlightWidthTop, int highlightWidthRight, int highlightWidthBottom, int highlightWidthLeft)
@@ -68,6 +103,14 @@ namespace EveOPreview.View
 		private bool IsSizeUpdateRequired(Size currentSize, int width, int height)
 		{
 			return (currentSize.Width != width) || (currentSize.Height != height);
+		}
+
+		public override void Close()
+		{
+			this._thumbnail.Image?.Dispose();
+			this._thumbnail.Image = null;
+
+			base.Close();
 		}
 	}
 }

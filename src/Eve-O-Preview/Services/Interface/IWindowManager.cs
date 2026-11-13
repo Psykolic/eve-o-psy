@@ -18,6 +18,7 @@ namespace EveOPreview.Services
 		void MoveWindow(IntPtr handle, int left, int top, int width, int height);
 		void MaximizeWindow(IntPtr handle);
 		(int Left, int Top, int Right, int Bottom) GetWindowPosition(IntPtr handle);
+		Size GetClientSize(IntPtr handle);
 		bool IsWindowMaximized(IntPtr handle);
 		bool IsWindowMinimized(IntPtr handle);
 		IDwmThumbnail GetLiveThumbnail(IntPtr destination, IntPtr source);

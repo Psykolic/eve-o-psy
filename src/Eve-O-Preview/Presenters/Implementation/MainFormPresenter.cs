@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
 using EveOPreview.Configuration;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.View;
@@ -43,6 +44,7 @@ namespace EveOPreview.Presenters
 			this.View.ApplicationSettingsChanged = this.SaveApplicationSettings;
 			this.View.ThumbnailsSizeChanged = this.UpdateThumbnailsSize;
 			this.View.ThumbnailStateChanged = this.UpdateThumbnailState;
+			this.View.SpotlightClientsChanged = this.UpdateSpotlightClients;
 			this.View.DocumentationLinkActivated = this.OpenDocumentationLink;
 			this.View.ApplicationExitRequested = this.ExitApplication;
 
@@ -105,6 +107,9 @@ namespace EveOPreview.Presenters
 			this.View.MinimizeToTray = this._configuration.MinimizeToTray;
 
 			this.View.ThumbnailOpacity = this._configuration.ThumbnailOpacity;
+			this.View.SpotlightOpacity = this._configuration.SpotlightOpacity;
+			this.View.SetSpotlightClients(this._configuration.SpotlightClients ?? new List<string>());
+			this.View.SetSpotlightHotkeyInfo(this.GetSpotlightHotkeyInfo());
 
 			this.View.EnableClientLayoutTracking = this._configuration.EnableClientLayoutTracking;
 			this.View.HideActiveClientThumbnail = this._configuration.HideActiveClientThumbnail;
@@ -147,6 +152,7 @@ namespace EveOPreview.Presenters
 			this._configuration.MinimizeToTray = this.View.MinimizeToTray;
 
 			this._configuration.ThumbnailOpacity = (float)this.View.ThumbnailOpacity;
+			this._configuration.SpotlightOpacity = (float)this.View.SpotlightOpacity;
 
 			this._configuration.EnableClientLayoutTracking = this.View.EnableClientLayoutTracking;
 			this._configuration.HideActiveClientThumbnail = this.View.HideActiveClientThumbnail;
@@ -211,7 +217,18 @@ namespace EveOPreview.Presenters
 
 			this.View.RefreshZoomSettings();
 
+			await this._mediator.Publish(new SpotlightSettingsUpdated());
 			await this._mediator.Send(new SaveConfiguration());
+		}
+
+		private string GetSpotlightHotkeyInfo()
+		{
+			if (this._configuration.ToggleSpotlightHotkeys == null)
+			{
+				return string.Empty;
+			}
+
+			return string.Join(", ", this._configuration.ToggleSpotlightHotkeys.Where(x => !string.IsNullOrWhiteSpace(x)));
 		}
 
 
@@ -231,6 +248,7 @@ namespace EveOPreview.Presenters
 			}
 
 			this.View.AddThumbnails(descriptions);
+			this.View.SetSpotlightClients(this._configuration.SpotlightClients ?? new List<string>());
 		}
 
 		public void RemoveThumbnails(IList<string> thumbnailTitles)
@@ -252,6 +270,7 @@ namespace EveOPreview.Presenters
 			}
 
 			this.View.RemoveThumbnails(descriptions);
+			this.View.SetSpotlightClients(this._configuration.SpotlightClients ?? new List<string>());
 		}
 
 		private IThumbnailDescription CreateThumbnailDescription(string title)
@@ -268,6 +287,14 @@ namespace EveOPreview.Presenters
 			}
 
 			await this._mediator.Send(new SaveConfiguration());
+		}
+
+		private async void UpdateSpotlightClients()
+		{
+			this._configuration.SpotlightClients = this.View.SpotlightClients.ToList();
+			this._configurationStorage.Save();
+
+			await this._mediator.Publish(new SpotlightSettingsUpdated());
 		}
 
 		public void UpdateThumbnailSize(Size size)

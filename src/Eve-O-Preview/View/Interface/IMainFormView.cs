@@ -13,6 +13,8 @@ namespace EveOPreview.View
 		bool MinimizeToTray { get; set; }
 
 		double ThumbnailOpacity { get; set; }
+		double SpotlightOpacity { get; set; }
+		IList<string> SpotlightClients { get; }
 
 		bool EnableClientLayoutTracking { get; set; }
 		bool HideActiveClientThumbnail { get; set; }
@@ -56,6 +58,8 @@ namespace EveOPreview.View
 
 		void AddThumbnails(IList<IThumbnailDescription> thumbnails);
 		void RemoveThumbnails(IList<IThumbnailDescription> thumbnails);
+		void SetSpotlightClients(IEnumerable<string> clients);
+		void SetSpotlightHotkeyInfo(string hotkeyInfo);
 		void RefreshZoomSettings();
 
 		Action ApplicationExitRequested { get; set; }
@@ -65,6 +69,7 @@ namespace EveOPreview.View
 		Action ApplicationSettingsChanged { get; set; }
 		Action ThumbnailsSizeChanged { get; set; }
 		Action<string> ThumbnailStateChanged { get; set; }
+		Action SpotlightClientsChanged { get; set; }
 		Action DocumentationLinkActivated { get; set; }
 	}
 }

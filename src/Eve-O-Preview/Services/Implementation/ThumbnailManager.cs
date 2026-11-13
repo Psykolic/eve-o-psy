@@ -38,6 +38,7 @@ namespace EveOPreview.Services
 		private readonly DispatcherTimer _thumbnailUpdateTimer;
 		private readonly IThumbnailViewFactory _thumbnailViewFactory;
 		private readonly Dictionary<IntPtr, IThumbnailView> _thumbnailViews;
+		private readonly Dictionary<IntPtr, IThumbnailView> _spotlightViews;
 
 		private (IntPtr Handle, string Title) _activeClient;
 		private IntPtr _externalApplication;
@@ -51,7 +52,11 @@ namespace EveOPreview.Services
 		private int _refreshCycleCount;
 		private int _hideThumbnailsDelay;
 
+		private bool _spotlightsVisible;
+		private bool _spotlightLayoutDirty;
+
 		private List<HotkeyHandler> _cycleClientHotkeyHandlers = new List<HotkeyHandler>();
+		private List<HotkeyHandler> _spotlightHotkeyHandlers = new List<HotkeyHandler>();
 		#endregion
 
 		public ThumbnailManager(IMediator mediator, IThumbnailConfiguration configuration, IProcessMonitor processMonitor, IWindowManager windowManager, IThumbnailViewFactory factory)
@@ -72,6 +77,9 @@ namespace EveOPreview.Services
 			this._enqueuedLocationChangeNotification = (IntPtr.Zero, null, null, Point.Empty, -1);
 
 			this._thumbnailViews = new Dictionary<IntPtr, IThumbnailView>();
+			this._spotlightViews = new Dictionary<IntPtr, IThumbnailView>();
+			this._spotlightsVisible = true;
+			this._spotlightLayoutDirty = false;
 
 			//  DispatcherTimer setup
 			this._thumbnailUpdateTimer = new DispatcherTimer();
@@ -96,6 +104,8 @@ namespace EveOPreview.Services
 			RegisterCycleClientHotkey(this._configuration.CycleGroup5BackwardHotkeys?.Select(x => this._configuration.StringToKey(x)), false, this._configuration.CycleGroup5ClientsOrder);
 
 			RegisterMinimizeAllClientsHotkey(this._configuration.MinimizeAllClientsHotkeys?.Select(x => this._configuration.StringToKey(x)));
+
+			RegisterSpotlightHotkey(this._configuration.ToggleSpotlightHotkeys?.Select(x => this._configuration.StringToKey(x)));
 		}
 
 		public IThumbnailView GetClientByTitle(string title)
@@ -276,6 +286,308 @@ namespace EveOPreview.Services
 			}
 		}
 
+		private void RegisterSpotlightHotkey(IEnumerable<Keys> keys)
+		{
+			if (keys == null)
+			{
+				return;
+			}
+
+			foreach (var hotkey in keys)
+			{
+				if (hotkey == Keys.None)
+				{
+					continue;
+				}
+
+				var newHandler = new HotkeyHandler(default(IntPtr), hotkey);
+				newHandler.Pressed += (object s, HandledEventArgs e) =>
+				{
+					this._spotlightsVisible = !this._spotlightsVisible;
+
+					this.DisableViewEvents();
+					this.RefreshSpotlightViews(false);
+					this.EnableViewEvents();
+
+					e.Handled = true;
+				};
+
+				newHandler.Register();
+				this._spotlightHotkeyHandlers.Add(newHandler);
+			}
+		}
+
+		private bool IsSpotlightClient(string title)
+		{
+			return !string.IsNullOrEmpty(title)
+				&& title != ThumbnailManager.DEFAULT_CLIENT_TITLE
+				&& this._configuration.SpotlightClients != null
+				&& this._configuration.SpotlightClients.Contains(title);
+		}
+
+		private void SyncSpotlightViews()
+		{
+			foreach (KeyValuePair<IntPtr, IThumbnailView> entry in this._spotlightViews.ToList())
+			{
+				if (!this._thumbnailViews.TryGetValue(entry.Key, out IThumbnailView thumbnail) || !this.IsSpotlightClient(thumbnail.Title))
+				{
+					this.CloseSpotlightView(entry.Key);
+				}
+			}
+
+			foreach (KeyValuePair<IntPtr, IThumbnailView> entry in this._thumbnailViews)
+			{
+				this.EnsureSpotlightView(entry.Key, entry.Value.Title);
+			}
+		}
+
+		private void EnsureSpotlightView(IntPtr id, string title)
+		{
+			if (!this.IsSpotlightClient(title))
+			{
+				return;
+			}
+
+			if (this._spotlightViews.TryGetValue(id, out IThumbnailView existingView))
+			{
+				if (existingView.Title != title)
+				{
+					existingView.Title = title;
+				}
+
+				return;
+			}
+
+			Point location = this._configuration.GetSpotlightLocation(title, this.GetDefaultSpotlightLocation(title, id));
+			Size size = this.GetSpotlightDisplaySize(title, id, location);
+
+			IThumbnailView view = this._thumbnailViewFactory.Create(id, title, size);
+			view.IsSpotlight = true;
+			view.IsOverlayEnabled = this._configuration.ShowThumbnailOverlays;
+			view.IsExcludedFromCycleGroup = false;
+			view.SetFrames(false);
+			view.SetSizeLimitations(new Size(160, 90), new Size(7680, 4320));
+			view.SetTopMost(this._configuration.SpotlightAlwaysOnTop);
+			view.SetOpacity(this._configuration.SpotlightOpacity);
+			view.SourceRegion = this.GetClampedSpotlightRegion(title, id);
+			view.ThumbnailLocation = location;
+			view.SetHighlight(false, 0);
+
+			view.ThumbnailResized = this.SpotlightViewResized;
+			view.ThumbnailMoved = this.SpotlightViewMoved;
+			view.ThumbnailActivated = this.ThumbnailActivated;
+			view.ThumbnailRegionSelected = this.SpotlightViewRegionSelected;
+
+			this._spotlightViews.Add(id, view);
+		}
+
+		private void CloseSpotlightView(IntPtr id)
+		{
+			if (!this._spotlightViews.TryGetValue(id, out IThumbnailView view))
+			{
+				return;
+			}
+
+			this._spotlightViews.Remove(id);
+
+			view.ThumbnailResized = null;
+			view.ThumbnailMoved = null;
+			view.ThumbnailActivated = null;
+			view.ThumbnailRegionSelected = null;
+			view.Close();
+		}
+
+		private void RefreshSpotlightViews(bool forceRefresh)
+		{
+			foreach (IThumbnailView view in this._spotlightViews.Values)
+			{
+				if (!this._spotlightsVisible)
+				{
+					if (view.IsActive)
+					{
+						view.Hide();
+					}
+
+					continue;
+				}
+
+				view.ThumbnailSize = this.GetSpotlightDisplaySize(view.Title, view.Id, view.ThumbnailLocation);
+				view.ThumbnailLocation = this._configuration.GetSpotlightLocation(view.Title, this.GetDefaultSpotlightLocation(view.Title, view.Id));
+				view.SourceRegion = this.GetClampedSpotlightRegion(view.Title, view.Id);
+				view.IsOverlayEnabled = this._configuration.ShowThumbnailOverlays;
+				view.SetOpacity(this._configuration.SpotlightOpacity);
+				view.SetTopMost(this._configuration.SpotlightAlwaysOnTop);
+				view.SetHighlight(
+					this._configuration.EnableActiveClientHighlight && (view.Id == this._activeClient.Handle),
+					this._configuration.ActiveClientHighlightThickness);
+
+				if (!view.IsActive)
+				{
+					view.Show();
+				}
+				else
+				{
+					view.Refresh(forceRefresh);
+				}
+			}
+
+			this.SaveSpotlightConfigurationIfNeeded();
+		}
+
+		private Point GetDefaultSpotlightLocation(string title, IntPtr id)
+		{
+			Rectangle area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+			Size size = this.GetSpotlightDisplaySize(title, id, new Point(area.Left + 20, area.Top + 20));
+			List<string> clients = this._configuration.SpotlightClients ?? new List<string>();
+			int index = clients.IndexOf(title);
+			if (index < 0)
+			{
+				index = 0;
+			}
+
+			const int margin = 20;
+			const int gap = 10;
+			int columns = Math.Max(1, (area.Width - margin) / Math.Max(1, size.Width + gap));
+			int column = index % columns;
+			int row = index / columns;
+
+			return new Point(
+				area.Left + margin + (column * (size.Width + gap)),
+				area.Top + margin + (row * (size.Height + gap)));
+		}
+
+		private Size GetSpotlightDisplaySize(string title, IntPtr id, Point location)
+		{
+			Size configuredSize = this._configuration.GetSpotlightSize(title, Size.Empty);
+			if (!configuredSize.IsEmpty)
+			{
+				return configuredSize;
+			}
+
+			Size size = this._configuration.SpotlightSize;
+			Size clientSize = this._windowManager.GetClientSize(id);
+			if (clientSize.Width <= 0 || clientSize.Height <= 0)
+			{
+				return size;
+			}
+
+			Rectangle area = Screen.FromPoint(location).WorkingArea;
+			Size minimumSize = new Size(160, 90);
+			Size maximumSize = new Size(Math.Max(160, area.Width - 40), Math.Max(90, area.Height - 40));
+
+			return SpotlightRegionCalculator.FitAspect(
+				size,
+				new Rectangle(Point.Empty, clientSize),
+				minimumSize,
+				maximumSize);
+		}
+
+		private Rectangle GetClampedSpotlightRegion(string title, IntPtr id)
+		{
+			Rectangle region = this._configuration.GetSpotlightRegion(title);
+			if (region.IsEmpty)
+			{
+				return Rectangle.Empty;
+			}
+
+			return SpotlightRegionCalculator.ClampToClient(region, this._windowManager.GetClientSize(id));
+		}
+
+		private void SpotlightViewRegionSelected(IntPtr id, Rectangle region)
+		{
+			if (this._ignoreViewEvents)
+			{
+				return;
+			}
+
+			if (!this._spotlightViews.TryGetValue(id, out IThumbnailView view))
+			{
+				return;
+			}
+
+			Size clientSize = this._windowManager.GetClientSize(id);
+			region = SpotlightRegionCalculator.ClampToClient(region, clientSize);
+
+			this._configuration.SetSpotlightRegion(view.Title, region);
+			this.ResizeSpotlightToRegionAspect(view, region, clientSize);
+
+			view.SourceRegion = region;
+
+			this._configuration.SetSpotlightSize(view.Title, view.ThumbnailSize);
+			this.SaveSpotlightConfiguration();
+		}
+
+		private void ResizeSpotlightToRegionAspect(IThumbnailView view, Rectangle region, Size clientSize)
+		{
+			Size sourceSize = region.IsEmpty ? clientSize : region.Size;
+			if (sourceSize.Width <= 0 || sourceSize.Height <= 0)
+			{
+				return;
+			}
+
+			Rectangle area = Screen.FromPoint(view.ThumbnailLocation).WorkingArea;
+			Size minimumSize = new Size(160, 90);
+			Size maximumSize = new Size(Math.Max(160, area.Width - 40), Math.Max(90, area.Height - 40));
+
+			view.ThumbnailSize = SpotlightRegionCalculator.FitAspect(
+				view.ThumbnailSize,
+				new Rectangle(Point.Empty, sourceSize),
+				minimumSize,
+				maximumSize);
+		}
+
+		private void SpotlightViewResized(IntPtr id)
+		{
+			if (this._ignoreViewEvents)
+			{
+				return;
+			}
+
+			if (!this._spotlightViews.TryGetValue(id, out IThumbnailView view))
+			{
+				return;
+			}
+
+			this._configuration.SetSpotlightSize(view.Title, view.ThumbnailSize);
+			this._spotlightLayoutDirty = true;
+
+			view.Refresh(false);
+		}
+
+		private void SpotlightViewMoved(IntPtr id)
+		{
+			if (this._ignoreViewEvents)
+			{
+				return;
+			}
+
+			if (!this._spotlightViews.TryGetValue(id, out IThumbnailView view))
+			{
+				return;
+			}
+
+			this._configuration.SetSpotlightLocation(view.Title, view.ThumbnailLocation);
+			this._spotlightLayoutDirty = true;
+
+			view.Refresh(false);
+		}
+
+		private void SaveSpotlightConfigurationIfNeeded()
+		{
+			if (!this._spotlightLayoutDirty)
+			{
+				return;
+			}
+
+			this._spotlightLayoutDirty = false;
+			this.SaveSpotlightConfiguration();
+		}
+
+		private async void SaveSpotlightConfiguration()
+		{
+			await this._mediator.Send(new SaveConfiguration());
+		}
+
 		public void Start()
 		{
 			this._thumbnailUpdateTimer.Start();
@@ -286,6 +598,11 @@ namespace EveOPreview.Services
 		public void Stop()
 		{
 			this._thumbnailUpdateTimer.Stop();
+
+			foreach (IntPtr id in this._spotlightViews.Keys.ToList())
+			{
+				this.CloseSpotlightView(id);
+			}
 		}
 
 		private void ThumbnailUpdateTimerTick(object sender, EventArgs e)
@@ -337,6 +654,7 @@ namespace EveOPreview.Services
 
 				this.ApplyClientLayout(view);
 				this.ApplyCaptionBar(view);
+				this.EnsureSpotlightView(view.Id, view.Title);
 
 				// TODO Add extension filter here later
 				if (view.Title != ThumbnailManager.DEFAULT_CLIENT_TITLE)
@@ -358,6 +676,12 @@ namespace EveOPreview.Services
 				if (process.Title != view.Title) // update thumbnail title
 				{
 					viewsRemoved.Add(view.Title);
+					this._configuration.RenameSpotlightClient(view.Title, process.Title);
+					if (this._spotlightViews.TryGetValue(process.Handle, out IThumbnailView spotlightView))
+					{
+						spotlightView.Title = process.Title;
+					}
+
 					view.Title = process.Title;
 					viewsAdded.Add(view.Title);
 
@@ -373,6 +697,7 @@ namespace EveOPreview.Services
 				IThumbnailView view = this._thumbnailViews[process.Handle];
 
 				this._thumbnailViews.Remove(view.Id);
+				this.CloseSpotlightView(process.Handle);
 				if (view.Title != ThumbnailManager.DEFAULT_CLIENT_TITLE)
 				{
 					viewsRemoved.Add(view.Title);
@@ -549,6 +874,19 @@ namespace EveOPreview.Services
 					view.Refresh(forceRefresh);
 				}
 			}
+
+			this.RefreshSpotlightViews(forceRefresh);
+
+			this.EnableViewEvents();
+		}
+
+		public void UpdateSpotlights()
+		{
+			this.DisableViewEvents();
+
+			this.SyncSpotlightViews();
+			this.RefreshSpotlightViews(false);
+			this.SaveSpotlightConfigurationIfNeeded();
 
 			this.EnableViewEvents();
 		}
@@ -770,6 +1108,14 @@ namespace EveOPreview.Services
 				IThumbnailView view = entry.Value;
 
 				if (view.IsKnownHandle(windowHandle))
+				{
+					return true;
+				}
+			}
+
+			foreach (KeyValuePair<IntPtr, IThumbnailView> entry in this._spotlightViews)
+			{
+				if (entry.Value.IsKnownHandle(windowHandle))
 				{
 					return true;
 				}
