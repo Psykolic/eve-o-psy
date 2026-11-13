@@ -7,6 +7,8 @@ namespace EveOPreview.Services.Interop
 	{
 		public const uint SPI_SETANIMATION = 0x0049;
 		public const uint SPI_GETANIMATION = 0x0048;
+		public const int PW_CLIENTONLY = 0x00000001;
+		public const int PW_RENDERFULLCONTENT = 0x00000002;
 
 		[DllImport("user32.dll")]
 		public static extern IntPtr GetForegroundWindow();
@@ -66,6 +68,9 @@ namespace EveOPreview.Services.Interop
 
 		[DllImport("user32.dll")]
 		public static extern IntPtr ReleaseDC(IntPtr hWnd, IntPtr hdc);
+
+		[DllImport("user32.dll")]
+		public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, int nFlags);
 
 		[DllImport("user32.dll")]
 		public static extern long SystemParametersInfo(long uAction, int lpvParam, ref ANIMATIONINFO uParam, int fuWinIni);
