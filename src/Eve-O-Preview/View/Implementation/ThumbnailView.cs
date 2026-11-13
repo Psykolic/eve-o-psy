@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Forms;
 using EveOPreview.Configuration;
 using EveOPreview.Services;
+using EveOPreview.Services.Interop;
 using EveOPreview.UI.Hotkeys;
 
 namespace EveOPreview.View
@@ -801,7 +802,7 @@ namespace EveOPreview.View
 				return;
 			}
 
-			Size clientSize = this.WindowManager.GetClientSize(this.Id);
+			Size clientSize = WindowGeometry.GetClientSize(this.Id);
 			Rectangle displayedSource = this.SourceRegion;
 			if (displayedSource.IsEmpty)
 			{
@@ -855,7 +856,7 @@ namespace EveOPreview.View
 		private double GetSourceAspect()
 		{
 			Size sourceSize = this.SourceRegion.IsEmpty
-				? this.WindowManager.GetClientSize(this.Id)
+				? WindowGeometry.GetClientSize(this.Id)
 				: this.SourceRegion.Size;
 
 			return sourceSize.Width > 0 && sourceSize.Height > 0
