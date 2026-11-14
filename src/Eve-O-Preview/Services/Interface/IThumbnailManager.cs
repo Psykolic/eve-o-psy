@@ -1,11 +1,13 @@
-﻿using EveOPreview.View;
+using System.Threading;
+using System.Threading.Tasks;
+using EveOPreview.View;
 
 namespace EveOPreview.Services
 {
 	public interface IThumbnailManager
 	{
 		void Start();
-		void Stop();
+		Task StopAsync(CancellationToken cancellationToken);
 
 		void UpdateCycleGroupIndicator();
 		void UpdateThumbnailsSize();
