@@ -2,7 +2,7 @@
 
 EVE-O Custom is distributed as a whole under the GNU General Public License v3.0 only (`GPL-3.0-only`). The original MIT license and copyright notice are preserved in [`LICENSES/MIT.txt`](LICENSES/MIT.txt). See [`LICENSE`](LICENSE) and the [provenance record](docs/PROVENANCE.md).
 
-> **Project status (2026-11-13):** EVE-O Custom is the active project. The former T0C edition repository is archived. Development is Linux-first; Windows is used only for final validation and human-in-the-loop testing. See [docs/team-workflow.md](docs/team-workflow.md).
+> **Project status (2026-11-14):** EVE-O Custom is the active project. The former T0C edition repository is archived. Development is Linux-first; Windows is used only for final validation and human-in-the-loop testing. Release assets are Linux-only from `v8.1.7` onward (`v8.1.6` was the last one to ship a Windows package). See [docs/team-workflow.md](docs/team-workflow.md).
 
 The purpose of this application is to provide a simple way to keep an eye on several simultaneously running EVE Online clients and to easily switch between them. While running it shows a set of live thumbnails for each of the active EVE Online clients. These thumbnails allow fast switch to the corresponding EVE Online client either using mouse or configurable hotkeys.
 
@@ -366,7 +366,7 @@ This setting allows to enable an alternate thumbnail render. This render doesn't
 
 ### Release build
 
-Release builds are generated using github actions when a release is created from tag. If you wish to build locally the variable EVEOTARGET controls Linux or Windows source inclusion.
+Release builds are generated using github actions when a release is created from tag. From `v8.1.7` onward the published release is Linux-only; the Windows package was last published in `v8.1.6`. If you wish to build locally the variable EVEOTARGET controls Linux or Windows source inclusion.
 
 You can build using : 
 
