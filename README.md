@@ -2,7 +2,7 @@
 
 EVE-O Custom is distributed as a whole under the GNU General Public License v3.0 only (`GPL-3.0-only`). The original MIT license and copyright notice are preserved in [`LICENSES/MIT.txt`](LICENSES/MIT.txt). See [`LICENSE`](LICENSE) and the [provenance record](docs/PROVENANCE.md).
 
-> **Project status (2026-11-14):** EVE-O Custom is the active project. The former T0C edition repository is archived. Development is Linux-first; Windows is used only for final validation and human-in-the-loop testing. Release assets are Linux-only from `v8.1.7` onward (`v8.1.6` was the last one to ship a Windows package). See [docs/team-workflow.md](docs/team-workflow.md).
+> **Project status (2026-11-14):** EVE-O Custom is the active project. The former T0C edition repository is archived. Development, CI and releases are Linux-only; the app is validated on Linux (Wine/Lutris). Windows is no longer part of the build/release process — it remains only as the maintainer's management console. Release assets are Linux-only from `v8.1.7` onward (`v8.1.6` was the last one to ship a Windows package). See [docs/team-workflow.md](docs/team-workflow.md).
 
 The purpose of this application is to provide a simple way to keep an eye on several simultaneously running EVE Online clients and to easily switch between them. While running it shows a set of live thumbnails for each of the active EVE Online clients. These thumbnails allow fast switch to the corresponding EVE Online client either using mouse or configurable hotkeys.
 
@@ -366,12 +366,12 @@ This setting allows to enable an alternate thumbnail render. This render doesn't
 
 ### Release build
 
-Release builds are generated using github actions when a release is created from tag. From `v8.1.7` onward the published release is Linux-only; the Windows package was last published in `v8.1.6`. If you wish to build locally the variable EVEOTARGET controls Linux or Windows source inclusion.
+Release builds are generated using GitHub Actions on the Linux self-hosted runner when a release is created from tag. The published package is `win-x64` self-contained and runs on Linux via Wine/Lutris; the Windows package was last published in `v8.1.6`. If you wish to build locally the variable EVEOTARGET controls Linux or Windows source inclusion.
 
 You can build using : 
 
 * dotnet build src\\Eve-O-Preview\\Eve-O-Preview.csproj --configuration Release -p:EVEOTARGET="Linux" -p:AssemblyVersion="8.0.2.0"
-* dotnet build src\\Eve-O-Preview\\Eve-O-Preview.csproj --configuration Release   -p:EVEOTARGET="Windows" -p:AssemblyVersion="8.0.2.0"
+* dotnet publish src\\Eve-O-Preview\\Eve-O-Preview.csproj -c Release -r win-x64 --self-contained true -p:EVEOTARGET="Linux" -p:EnableWindowsTargeting=true -p:AssemblyVersion="8.0.2.0" -o pkg
 
 <div style="page-break-after: always;"></div>
 
