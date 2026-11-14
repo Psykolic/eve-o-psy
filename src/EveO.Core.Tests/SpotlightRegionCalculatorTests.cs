@@ -32,6 +32,44 @@ namespace EveO.Tests.Services
 		}
 
 		[Fact]
+		public void Test_MapSelection_SelectionLargerThanSource_ClampsToSource()
+		{
+			var destination = new Size(640, 360);
+			var displayedSource = new Rectangle(100, 100, 400, 300);
+			var selection = new Rectangle(0, 0, 1000, 1000);
+
+			var region = SpotlightRegionCalculator.MapSelection(selection, displayedSource, destination);
+
+			region.Should().Be(displayedSource);
+		}
+
+		[Fact]
+		public void Test_MapSelection_NegativeSelectionCoords_MapsCorrectly()
+		{
+			var destination = new Size(640, 360);
+			var displayedSource = new Rectangle(0, 0, 1920, 1080);
+			var selection = new Rectangle(-100, -100, 200, 200);
+
+			var region = SpotlightRegionCalculator.MapSelection(selection, displayedSource, destination);
+
+			// scaleX=3, scaleY=3; mapped rect = FromLTRB(-300,-300,300,300)
+			// Intersect with (0,0,1920,1080) → (0,0,300,300)
+			region.Should().Be(new Rectangle(0, 0, 300, 300));
+		}
+
+		[Fact]
+		public void Test_MapSelection_ResultTooSmall_ReturnsEmpty()
+		{
+			var destination = new Size(640, 360);
+			var displayedSource = new Rectangle(0, 0, 1920, 1080);
+			var selection = new Rectangle(0, 0, 1, 1);
+
+			var region = SpotlightRegionCalculator.MapSelection(selection, displayedSource, destination);
+
+			region.Should().Be(Rectangle.Empty);
+		}
+
+		[Fact]
 		public void Test_ClampToClient_IntersectsWithClientArea()
 		{
 			var region = new Rectangle(10, 10, 100, 100);
@@ -49,6 +87,26 @@ namespace EveO.Tests.Services
 			var clamped = SpotlightRegionCalculator.ClampToClient(region, new Size(50, 50));
 
 			clamped.Should().Be(Rectangle.Empty);
+		}
+
+		[Fact]
+		public void Test_ClampToClient_NegativeCoords_ClampsToOrigin()
+		{
+			var region = new Rectangle(-10, -10, 100, 100);
+
+			var clamped = SpotlightRegionCalculator.ClampToClient(region, new Size(50, 50));
+
+			clamped.Should().Be(new Rectangle(0, 0, 50, 50));
+		}
+
+		[Fact]
+		public void Test_ClampToClient_RegionLargerThanClient_ReturnsClientIntersection()
+		{
+			var region = new Rectangle(0, 0, 200, 200);
+
+			var clamped = SpotlightRegionCalculator.ClampToClient(region, new Size(50, 50));
+
+			clamped.Should().Be(new Rectangle(0, 0, 50, 50));
 		}
 
 		[Fact]
@@ -77,6 +135,46 @@ namespace EveO.Tests.Services
 				new Size(2000, 1000));
 
 			size.Should().Be(new Size(1800, 90));
+		}
+
+		[Fact]
+		public void Test_FitAspect_ZeroSourceRegion_ReturnsCurrentSize()
+		{
+			var size = SpotlightRegionCalculator.FitAspect(
+				new Size(640, 360),
+				new Rectangle(0, 0, 0, 0),
+				new Size(160, 90),
+				new Size(2000, 1000));
+
+			size.Should().Be(new Size(640, 360));
+		}
+
+		[Fact]
+		public void Test_FitAspect_RespectsMaximumWidth()
+		{
+			var source = new Rectangle(0, 0, 4000, 2000);
+
+			var size = SpotlightRegionCalculator.FitAspect(
+				new Size(640, 360),
+				source,
+				new Size(160, 90),
+				new Size(200, 1000));
+
+			size.Should().Be(new Size(200, 100));
+		}
+
+		[Fact]
+		public void Test_FitAspect_RespectsBothMinAndMax()
+		{
+			var source = new Rectangle(0, 0, 4000, 2000);
+
+			var size = SpotlightRegionCalculator.FitAspect(
+				new Size(640, 360),
+				source,
+				new Size(300, 200),
+				new Size(500, 500));
+
+			size.Should().Be(new Size(500, 250));
 		}
 	}
 }
