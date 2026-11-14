@@ -10,7 +10,7 @@ A Fase 2 — *Architecture Cleanup* tem como objetivo separar camadas, avaliar p
 
 | ID | Deliverable | Linha de Referência |
 |---|-------------|---------------------|
-| **2.1** | Separação de camadas: `EveO.Core` (Domain), `EveO.Infrastructure` (Win32/DWM), `EveO.Presentation` (Views) | #6.8, #6.9 |
+| **2.1** | Separação de camadas: `EveO.Core` (Domain), `EveO.Infrastructure` *futuro* (Win32/DWM), `EveO.Presentation` *futuro* (Views) | #6.8, #6.9 |
 | **2.2** | Spike técnico: Avaliar `DispatcherTimer` → Reactive Streams (`IAsyncEnumerable` + `Channel<T>` ou Rx.NET) | #6.2, #6.7, #H2 |
 | **2.3** | Spike técnico: Avaliar virtualização de thumbnails (render apenas visíveis) | #6.8, #5.1, #H6 |
 | **2.4** | Spike técnico: Avaliar pool de `DwmThumbnail` (registro/desregistro reutilizado) | #6.2, #6.4, #H3 |
@@ -180,10 +180,10 @@ A Fase 2 — *Architecture Cleanup* tem como objetivo separar camadas, avaliar p
 
 | Área | Caminhos | Exemplos |
 |------|----------|----------|
-| **Análise e escrita de documentação** | `docs/audits/`, `docs/architecture/` | Criar `architecture-plan.md`, diagramas C4, ADRs |
-| **Projetos de teste e abstrações** | `src/Eve-O.Core/`, `src/Eve-O.Core.Tests/`, `src/EveO.Tests/` | Mover `ThumbnailManager` → `ThumbnailOrchestrator`, criar interfaces, testes unitários |
-| **Spikes e prototipagem** | `src/Eve-O.Core/`, `src/Eve-O.Infrastructure/`, `src/EveO.Core.Tests/` | Prototypes para 2.2, 2.3, 2.4 (code em C#, não produção) |
-| **Refatoração de camadas** | `src/Eve-O.Core/`, `src/Eve-O.Infrastructure/`, `src/Eve-O.Presentation/` | Separação de projetos, interface extração, build em Linux |
+| **Análise e escrita de documentação** | `docs/audits/` | Criar `architecture-plan.md`, diagramas C4, ADRs |
+| **Projetos de teste e abstrações** | `src/EveO.Core/`, `src/EveO.Core.Tests/`, `src/EveO.Tests/` | Mover `ThumbnailManager` → `ThumbnailOrchestrator`, criar interfaces, testes unitários |
+| **Spikes e prototipagem** | `src/EveO.Core/`, `src/EveO.Core.Tests/` | Prototypes para 2.2, 2.3, 2.4 (code em C#, não produção) |
+| **Refatoração de camadas** | `src/EveO.Core/` | Separação de projetos, interface extração, build em Linux |
 | **Configurações e CI** | `docs/audits/` (apenas leitura/escrita de docs) | Atualizar workflows — **EXIGE humano** |
 
 ### O que exige humano/Windows:
@@ -206,21 +206,21 @@ Cada job é uma unidade pequena, com início e fim definidos, que pode ser feita
 
 - **Título:** Mover ThumbnailManager para EveO.Core como ThumbnailOrchestrator com interfaces
 - **Critério de aceite:** `EveO.Core` builda em Linux (`dotnet build --os linux`) sem erros de referência Windows; `ThumbnailOrchestrator` depende apenas de `IThumbnailProvider`/`IWindowManager` abstratos.
-- **Paths:** `src/Eve-O.Core/`, `src/Eve-O.Infrastructure/`, `src/Eve-O.Presentation/`
+- **Paths:** `src/EveO.Core/`
 - **Dependências:** Nenhuma (é o ponto de partida da Fase 2)
 
 ### Job 2: Spike Reactive Streams (2.2)
 
 - **Título:** Prototype push-based com IAsyncEnumerable + Channel<T> (ou Rx.NET)
 - **Critério de aceite:** Prototype criado e medição de CPU idle baseline vs push-based registrada; decisão documentada no ADR-006 (se gate >30% CPU reduction passa, ou mantém timer).
-- **Paths:** `src/Eve-O.Core.Tests/`, `src/Eve-O.Core/`
+- **Paths:** `src/EveO.Core.Tests/`, `src/EveO.Core/`
 - **Dependências:** 2.1 concluído (abstrações disponíveis)
 
 ### Job 3: Spike Virtualização de Thumbnails (2.3)
 
 - **Título:** Prototype VirtualizingThumbnailPanel ou lógica de ocultar thumbnails fora viewport
 - **Critério de aceite:** Prototype criado e medição de memória baseline vs virtualizada registrada; se redução >20% memória: gate passou, decisão no ADR-007. Se não, documento.
-- **Paths:** `src/Eve-O.Core/`, `src/Eve-O.Infrastructure/`
+- **Paths:** `src/EveO.Core/`
 - **Dependências:** 2.1 concluído (core abstrações disponíveis)
 
 ---
@@ -231,4 +231,4 @@ Cada job é uma unidade pequena, com início e fim definidos, que pode ser feita
 - IDs de auditoria: #6.8, #6.9, #6.2, #6.7, #H2, #H3, #H6, #5.3
 - Spikes gates referem-se a findings #H2, #H3, #H6 da auditoria
 - Dependências entre items seguem a tabela de `docs/roadmap.md` lines 101-106
-- Caminhos de source: `src/Eve-O.Core/`, `src/Eve-O.Infrastructure/`, `src/Eve-O.Presentation/`, `src/Eve-O.Core.Tests/`, `src/EveO.Tests/`
+- Caminhos de source: `src/EveO.Core/`, `src/EveO.Core.Tests/`, `src/EveO.Tests/`
