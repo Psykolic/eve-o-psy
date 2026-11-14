@@ -24,6 +24,8 @@ namespace EveOPreview.Presenters
 		private bool _suppressSizeNotifications;
 
 		private bool _exitApplication;
+		private bool _closeInProgress;
+		private bool _allowClose;
 		#endregion
 
 		public MainFormPresenter(IApplicationController controller, IMainFormView view, IMediator mediator, IThumbnailConfiguration configuration, IConfigurationStorage configurationStorage)
@@ -37,6 +39,8 @@ namespace EveOPreview.Presenters
 
 			this._suppressSizeNotifications = false;
 			this._exitApplication = false;
+			this._closeInProgress = false;
+			this._allowClose = false;
 
 			this.View.FormActivated = this.Activate;
 			this.View.FormMinimized = this.Minimize;
@@ -78,14 +82,47 @@ namespace EveOPreview.Presenters
 			this.View.Hide();
 		}
 
-		private void Close(ViewCloseRequest request)
+		private async void Close(ViewCloseRequest request)
 		{
+			// Segunda passagem: o encerramento assíncrono já terminou e salvou a configuração.
+			if (this._allowClose)
+			{
+				request.Allow = true;
+				return;
+			}
+
+			// Um fechamento já está em andamento; não inicia outro em paralelo.
+			if (this._closeInProgress)
+			{
+				request.Allow = false;
+				return;
+			}
+
 			if (this._exitApplication || !this.View.MinimizeToTray)
 			{
-				this._mediator.Send(new StopService()).Wait();
+				// Fechamento diferido: negar esta passagem evita bloquear a thread de UI com
+				// Wait/Result. O StopAsync é aguardado de verdade e o form é fechado de novo
+				// (segunda passagem) depois que o trabalho em voo terminou.
+				request.Allow = false;
+				this._closeInProgress = true;
 
-				this._configurationStorage.Save();
-				request.Allow = true;
+				try
+				{
+					await this._mediator.Send(new StopService());
+
+					this._configurationStorage.Save();
+				}
+				catch (Exception error)
+				{
+					Trace.TraceError($"MainFormPresenter: falha ao encerrar os serviços: {error}");
+				}
+				finally
+				{
+					this._closeInProgress = false;
+					this._allowClose = true;
+					this.View.Close();
+				}
+
 				return;
 			}
 
