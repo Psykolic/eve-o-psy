@@ -177,6 +177,42 @@ public sealed class ThumbnailManagerStopAsyncTests
         Assert.DoesNotContain(listener.Messages, message => message.Contains("exceção assíncrona suprimida", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task StopAsync_ClosesSpotlightCreatedWhileDraining()
+    {
+        var harness = new TestHarness();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        harness.Mediator
+            .Setup(m => m.Publish(It.IsAny<SpotlightRegionUpdated>(), It.IsAny<CancellationToken>()))
+            .Returns(async (SpotlightRegionUpdated notification, CancellationToken token) =>
+            {
+                entered.TrySetResult();
+                await release.Task;
+            });
+
+        harness.Manager.Start();
+        InvokePublishSpotlightRegionUpdated(harness.Manager, "EVE - Alpha", Rectangle.Empty);
+        await entered.Task.WaitAsync(Timeout);
+
+        Task stop = harness.Manager.StopAsync(CancellationToken.None);
+
+        // A primeira passada de fechamento já rodou; o manager está drenando. Um tick em voo
+        // ainda pode criar um spotlight nesse intervalo.
+        var id = new IntPtr(0x9002);
+        var lateView = new Mock<IThumbnailView>(MockBehavior.Loose);
+        lateView.SetupGet(v => v.Id).Returns(id);
+        lateView.SetupGet(v => v.Title).Returns("EVE - Beta");
+        GetSpotlightViews(harness.Manager)[id] = lateView.Object;
+
+        release.TrySetResult();
+        await stop.WaitAsync(Timeout);
+
+        lateView.Verify(v => v.Close(), Times.Once);
+        Assert.Empty(GetSpotlightViews(harness.Manager));
+    }
+
     private sealed class OperationTraceListener(string operation) : TraceListener
     {
         public List<string> Messages { get; } = new List<string>();

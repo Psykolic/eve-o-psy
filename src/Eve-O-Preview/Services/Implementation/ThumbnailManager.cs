@@ -669,6 +669,14 @@ namespace EveOPreview.Services
 				// diferido do presenter aguarda esta tarefa sem travar o message loop.
 				await this._asyncOperations.DrainAsync(cancellationToken).ConfigureAwait(false);
 				drained = true;
+
+				// Um tick que já estava em execução pode ter criado um spotlight depois da
+				// primeira passada de fechamento. Fecha o que restar para não deixar janela
+				// pendurada no encerramento (CloseSpotlightView não dispara trabalho rastreado).
+				foreach (IntPtr id in this._spotlightViews.Keys.ToList())
+				{
+					this.CloseSpotlightView(id);
+				}
 			}
 			finally
 			{
