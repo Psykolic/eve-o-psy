@@ -685,16 +685,19 @@ namespace EveOPreview.Services
 
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
+			// Capturado antes do primeiro await: a varredura final precisa voltar para a
+			// thread de UI, dona de _spotlightViews (issue #59). Sem contexto de
+			// sincronização (testes ou host sem UI) não existe thread de UI para onde
+			// despachar, então a varredura roda no thread atual.
+			SynchronizationContext uiContext = SynchronizationContext.Current;
+
 			this._thumbnailUpdateTimer.Stop();
 
 			CancellationTokenSource lifetimeCancellation = this._lifetimeCancellation;
 			this._lifetimeCancellation = null;
 			lifetimeCancellation?.Cancel();
 
-			foreach (IntPtr id in this._spotlightViews.Keys.ToList())
-			{
-				this.CloseSpotlightView(id);
-			}
+			this.CloseAllSpotlightViews();
 
 			bool drained = false;
 			try
@@ -705,12 +708,10 @@ namespace EveOPreview.Services
 				drained = true;
 
 				// Um tick que já estava em execução pode ter criado um spotlight depois da
-				// primeira passada de fechamento. Fecha o que restar para não deixar janela
-				// pendurada no encerramento (CloseSpotlightView não dispara trabalho rastreado).
-				foreach (IntPtr id in this._spotlightViews.Keys.ToList())
-				{
-					this.CloseSpotlightView(id);
-				}
+				// primeira passada de fechamento. Fecha o que restar na thread de UI para não
+				// deixar janela pendurada no encerramento (CloseSpotlightView não dispara
+				// trabalho rastreado).
+				await RunOnThreadAsync(uiContext, this.CloseAllSpotlightViews).ConfigureAwait(false);
 			}
 			finally
 			{
@@ -719,6 +720,42 @@ namespace EveOPreview.Services
 					lifetimeCancellation?.Dispose();
 				}
 			}
+		}
+
+		private void CloseAllSpotlightViews()
+		{
+			foreach (IntPtr id in this._spotlightViews.Keys.ToList())
+			{
+				this.CloseSpotlightView(id);
+			}
+		}
+
+		// Executa a ação no contexto informado. Se já estamos nele (ou se não há contexto),
+		// executa inline. Usado para devolver à thread de UI o trabalho que precisa tocar
+		// o estado confinado depois de um await com ConfigureAwait(false).
+		private static async Task RunOnThreadAsync(SynchronizationContext context, Action action)
+		{
+			if (context == null || SynchronizationContext.Current == context)
+			{
+				action();
+				return;
+			}
+
+			TaskCompletionSource completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			context.Post(_ =>
+			{
+				try
+				{
+					action();
+					completion.TrySetResult();
+				}
+				catch (Exception error)
+				{
+					completion.TrySetException(error);
+				}
+			}, null);
+
+			await completion.Task.ConfigureAwait(false);
 		}
 
 		private void ThumbnailUpdateTimerTick(object sender, EventArgs e)
