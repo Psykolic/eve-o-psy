@@ -371,7 +371,7 @@ Release builds are generated using GitHub Actions on the Linux self-hosted runne
 You can build using : 
 
 * dotnet build src\\Eve-O-Preview\\Eve-O-Preview.csproj --configuration Release -p:EVEOTARGET="Linux" -p:AssemblyVersion="8.0.2.0"
-* dotnet publish src\\Eve-O-Preview\\Eve-O-Preview.csproj -c Release -r win-x64 --self-contained true -p:EVEOTARGET="Linux" -p:EnableWindowsTargeting=true -p:AssemblyVersion="8.0.2.0" -o pkg
+* dotnet publish src\\Eve-O-Preview\\Eve-O-Preview.csproj -c Release -r win-x64 --self-contained true -p:EVEOTARGET="Linux" -p:EnableWindowsTargeting=true -p:PublishSingleFile=false -p:AssemblyVersion="8.0.2.0" -o pkg
 
 <div style="page-break-after: always;"></div>
 
