@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.Services;
@@ -22,11 +22,10 @@ namespace EveOPreview.Mediator.Handlers.Services
 			return Unit.Task;
 		}
 
-		public Task<Unit> Handle(StopService message, CancellationToken cancellationToken)
+		public async Task<Unit> Handle(StopService message, CancellationToken cancellationToken)
 		{
-			this._manager.Stop();
-
-			return Unit.Task;
+			await this._manager.StopAsync(cancellationToken);
+			return Unit.Value;
 		}
 	}
 }

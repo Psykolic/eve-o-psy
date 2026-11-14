@@ -11,6 +11,7 @@ using System.Drawing;
 using System.Linq;
 using System.Net;
 using System.Reflection.Metadata;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Forms;
@@ -39,6 +40,13 @@ namespace EveOPreview.Services
 		private readonly IThumbnailViewFactory _thumbnailViewFactory;
 		private readonly Dictionary<IntPtr, IThumbnailView> _thumbnailViews;
 		private readonly Dictionary<IntPtr, IThumbnailView> _spotlightViews;
+
+		// Rastreia o trabalho assíncrono dos handlers para que StopAsync possa aguardá-lo.
+		private readonly AsyncOperationTracker _asyncOperations;
+
+		// Vida do manager: criado em Start(), cancelado em StopAsync() para que o trabalho
+		// em voo termine de forma cooperativa.
+		private CancellationTokenSource _lifetimeCancellation;
 
 		private (IntPtr Handle, string Title) _activeClient;
 		private IntPtr _externalApplication;
@@ -78,6 +86,7 @@ namespace EveOPreview.Services
 
 			this._thumbnailViews = new Dictionary<IntPtr, IThumbnailView>();
 			this._spotlightViews = new Dictionary<IntPtr, IThumbnailView>();
+			this._asyncOperations = new AsyncOperationTracker();
 			this._spotlightsVisible = true;
 			this._spotlightLayoutDirty = false;
 
@@ -503,10 +512,10 @@ namespace EveOPreview.Services
 			return SpotlightRegionCalculator.ClampToClient(region, WindowGeometry.GetClientSize(id));
 		}
 
-		private async void SpotlightViewRegionSelected(IntPtr id, Rectangle region) =>
-			await RunGuardedAsync(nameof(SpotlightViewRegionSelected), () => this.SpotlightViewRegionSelectedCore(id, region));
+		private void SpotlightViewRegionSelected(IntPtr id, Rectangle region) =>
+			this.RunTracked(nameof(SpotlightViewRegionSelected), token => this.SpotlightViewRegionSelectedCore(id, region, token));
 
-		private async Task SpotlightViewRegionSelectedCore(IntPtr id, Rectangle region)
+		private async Task SpotlightViewRegionSelectedCore(IntPtr id, Rectangle region, CancellationToken cancellationToken)
 		{
 			if (this._ignoreViewEvents)
 			{
@@ -529,7 +538,7 @@ namespace EveOPreview.Services
 			this._configuration.SetSpotlightSize(view.Title, view.ThumbnailSize);
 			this.SaveSpotlightConfiguration();
 
-			await this._mediator.Publish(new SpotlightRegionUpdated(view.Title, region));
+			await this._mediator.Publish(new SpotlightRegionUpdated(view.Title, region), cancellationToken);
 		}
 
 		private void ResizeSpotlightToRegionAspect(IThumbnailView view, Rectangle region, Size clientSize)
@@ -606,29 +615,67 @@ namespace EveOPreview.Services
 			{
 				await action();
 			}
+			catch (OperationCanceledException error)
+			{
+				// Cancelamento é parte do encerramento normal, não uma falha.
+				System.Diagnostics.Trace.TraceInformation($"{operation}: operação cancelada ({error.Message}).");
+			}
 			catch (Exception error)
 			{
 				System.Diagnostics.Trace.TraceError($"{operation}: exceção assíncrona suprimida: {error}");
 			}
 		}
 
-		private async void SaveSpotlightConfiguration() =>
-			await RunGuardedAsync(nameof(SaveSpotlightConfiguration), async () => await this._mediator.Send(new SaveConfiguration()));
+		// Registra o handler no rastreador e propaga o token de vida do manager para as
+		// chamadas de mediator, de modo que o cancelamento seja cooperativo.
+		private void RunTracked(string operation, Func<CancellationToken, Task> action)
+		{
+			CancellationToken cancellationToken = this._lifetimeCancellation?.Token ?? CancellationToken.None;
+
+			this._asyncOperations.Run(() => RunGuardedAsync(operation, () => action(cancellationToken)));
+		}
+
+		private void SaveSpotlightConfiguration() =>
+			this.RunTracked(nameof(SaveSpotlightConfiguration), token => this._mediator.Send(new SaveConfiguration(), token));
 
 		public void Start()
 		{
+			// Um Start após um Stop anterior recomeça o ciclo de vida com um token novo.
+			// O token antigo não é descartado aqui: operações ainda em voo podem tê-lo capturado.
+			this._lifetimeCancellation = new CancellationTokenSource();
+
 			this._thumbnailUpdateTimer.Start();
 
 			this.RefreshThumbnails();
 		}
 
-		public void Stop()
+		public async Task StopAsync(CancellationToken cancellationToken)
 		{
 			this._thumbnailUpdateTimer.Stop();
+
+			CancellationTokenSource lifetimeCancellation = this._lifetimeCancellation;
+			this._lifetimeCancellation = null;
+			lifetimeCancellation?.Cancel();
 
 			foreach (IntPtr id in this._spotlightViews.Keys.ToList())
 			{
 				this.CloseSpotlightView(id);
+			}
+
+			bool drained = false;
+			try
+			{
+				// ConfigureAwait(false) mantém o shutdown fora da thread de UI: o fechamento
+				// diferido do presenter aguarda esta tarefa sem travar o message loop.
+				await this._asyncOperations.DrainAsync(cancellationToken).ConfigureAwait(false);
+				drained = true;
+			}
+			finally
+			{
+				if (drained)
+				{
+					lifetimeCancellation?.Dispose();
+				}
 			}
 		}
 
@@ -638,10 +685,10 @@ namespace EveOPreview.Services
 			this.RefreshThumbnails();
 		}
 
-		private async void UpdateThumbnailsList() =>
-			await RunGuardedAsync(nameof(UpdateThumbnailsList), this.UpdateThumbnailsListCore);
+		private void UpdateThumbnailsList() =>
+			this.RunTracked(nameof(UpdateThumbnailsList), this.UpdateThumbnailsListCore);
 
-		private async Task UpdateThumbnailsListCore()
+		private async Task UpdateThumbnailsListCore(CancellationToken cancellationToken)
 		{
 			this._processMonitor.GetUpdatedProcesses(out ICollection<IProcessInfo> addedProcesses, out ICollection<IProcessInfo> updatedProcesses, out ICollection<IProcessInfo> removedProcesses);
 
@@ -729,7 +776,7 @@ namespace EveOPreview.Services
 
 			if ((viewsAdded.Count > 0) || (viewsRemoved.Count > 0))
 			{
-				await this._mediator.Publish(new ThumbnailListUpdated(viewsAdded, viewsRemoved));
+				await this._mediator.Publish(new ThumbnailListUpdated(viewsAdded, viewsRemoved), cancellationToken);
 			}
 		}
 
@@ -960,8 +1007,8 @@ namespace EveOPreview.Services
 			this.PublishSpotlightRegionUpdated(title, Rectangle.Empty);
 		}
 
-		private async void PublishSpotlightRegionUpdated(string title, Rectangle region) =>
-			await RunGuardedAsync(nameof(PublishSpotlightRegionUpdated), async () => await this._mediator.Publish(new SpotlightRegionUpdated(title, region)));
+		private void PublishSpotlightRegionUpdated(string title, Rectangle region) =>
+			this.RunTracked(nameof(PublishSpotlightRegionUpdated), token => this._mediator.Publish(new SpotlightRegionUpdated(title, region), token));
 
 		public void UpdateThumbnailsSize()
 		{
@@ -1168,10 +1215,10 @@ namespace EveOPreview.Services
 		}
 
 
-		private async void ThumbnailViewResized(IntPtr id) =>
-			await RunGuardedAsync(nameof(ThumbnailViewResized), () => this.ThumbnailViewResizedCore(id));
+		private void ThumbnailViewResized(IntPtr id) =>
+			this.RunTracked(nameof(ThumbnailViewResized), token => this.ThumbnailViewResizedCore(id, token));
 
-		private async Task ThumbnailViewResizedCore(IntPtr id)
+		private async Task ThumbnailViewResizedCore(IntPtr id, CancellationToken cancellationToken)
 		{
 			if (this._ignoreViewEvents)
 			{
@@ -1184,7 +1231,7 @@ namespace EveOPreview.Services
 
 			view.Refresh(false);
 
-			await this._mediator.Publish(new ThumbnailActiveSizeUpdated(view.ThumbnailSize));
+			await this._mediator.Publish(new ThumbnailActiveSizeUpdated(view.ThumbnailSize), cancellationToken);
 		}
 
 		private void ThumbnailViewMoved(IntPtr id)
@@ -1479,17 +1526,17 @@ namespace EveOPreview.Services
 			}
 		}
 
-		private async void RaiseThumbnailLocationUpdatedNotification(string title) =>
-			await RunGuardedAsync(nameof(RaiseThumbnailLocationUpdatedNotification), () => this.RaiseThumbnailLocationUpdatedNotificationCore(title));
+		private void RaiseThumbnailLocationUpdatedNotification(string title) =>
+			this.RunTracked(nameof(RaiseThumbnailLocationUpdatedNotification), token => this.RaiseThumbnailLocationUpdatedNotificationCore(title, token));
 
-		private async Task RaiseThumbnailLocationUpdatedNotificationCore(string title)
+		private async Task RaiseThumbnailLocationUpdatedNotificationCore(string title, CancellationToken cancellationToken)
 		{
 			if (string.IsNullOrEmpty(title) || (title == ThumbnailManager.DEFAULT_CLIENT_TITLE))
 			{
 				return;
 			}
 
-			await this._mediator.Send(new SaveConfiguration());
+			await this._mediator.Send(new SaveConfiguration(), cancellationToken);
 		}
 
 		// We shouldn't manage some thumbnails (like thumbnail of the EVE client sitting on the login screen)
