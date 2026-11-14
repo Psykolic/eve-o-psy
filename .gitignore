@@ -13,3 +13,7 @@ build/Fody*
 EVE-O-Preview.json
 *.bak
 TestResults/
+
+# Artefatos do agente/worker (nao fazem parte do repositorio)
+summary.md
+.opencode/
