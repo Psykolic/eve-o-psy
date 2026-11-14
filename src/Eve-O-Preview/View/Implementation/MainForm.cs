@@ -71,7 +71,7 @@ namespace EveOPreview.View
 
 				this._iconName = value;
 
-				// Set Icon 
+				// Set Icon
 				System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
 				if (this._iconName == null || ((resources.GetObject(this._iconName))) == null)
 				{
@@ -88,7 +88,7 @@ namespace EveOPreview.View
 						this.NotifyIcon.Icon = this.Icon;
 					}
 				}
-				catch (Exception ex)
+				catch (Exception)
 				{
 					// Log ?
 				}
