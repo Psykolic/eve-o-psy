@@ -258,21 +258,24 @@ public sealed class ThumbnailManagerStopAsyncTests
     }
 
     [Fact]
-    public async Task StopAsync_WithoutInFlightWork_StopsTimerAndAllowsRestart()
+    public void StopAsync_WithoutInFlightWork_StopsTimerAndAllowsRestart()
     {
         var harness = new TestHarness();
         DispatcherTimer timer = GetTimer(harness.Manager);
 
+        // O dicionário de views é confinado à thread que criou o manager (issue #59).
+        // Aguardar StopAsync de forma síncrona mantém o ciclo start/stop nessa thread,
+        // evitando a troca de thread das continuações do runner de testes.
         harness.Manager.Start();
         Assert.True(timer.IsEnabled);
 
-        await harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout);
+        Assert.True(harness.Manager.StopAsync(CancellationToken.None).Wait(Timeout), "StopAsync não terminou no tempo esperado.");
         Assert.False(timer.IsEnabled);
 
         harness.Manager.Start();
         Assert.True(timer.IsEnabled);
 
-        await harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout);
+        Assert.True(harness.Manager.StopAsync(CancellationToken.None).Wait(Timeout), "StopAsync não terminou no tempo esperado.");
         Assert.False(timer.IsEnabled);
 
         harness.Mediator.Verify(

@@ -38,8 +38,16 @@ namespace EveOPreview.Services
 		private readonly IThumbnailConfiguration _configuration;
 		private readonly DispatcherTimer _thumbnailUpdateTimer;
 		private readonly IThumbnailViewFactory _thumbnailViewFactory;
+
+		// Confinado à thread de UI (issue #59). O DispatcherTimer, os eventos das views e as
+		// continuações de ativação já rodam nessa thread; por isso não há lock aqui: a
+		// invariante é verificada por EnsureThumbnailViewsThread a cada entrada pública.
 		private readonly Dictionary<IntPtr, IThumbnailView> _thumbnailViews;
 		private readonly Dictionary<IntPtr, IThumbnailView> _spotlightViews;
+
+		// Thread dona do dicionário de views: a mesma que criou o DispatcherTimer (o Tick
+		// só dispara na thread do Dispatcher associado ao timer).
+		private readonly int _uiThreadId;
 
 		// Rastreia o trabalho assíncrono dos handlers para que StopAsync possa aguardá-lo.
 		private readonly AsyncOperationTracker _asyncOperations;
@@ -94,6 +102,7 @@ namespace EveOPreview.Services
 			this._thumbnailUpdateTimer = new DispatcherTimer();
 			this._thumbnailUpdateTimer.Tick += ThumbnailUpdateTimerTick;
 			this._thumbnailUpdateTimer.Interval = new TimeSpan(0, 0, 0, 0, configuration.ThumbnailRefreshPeriod);
+			this._uiThreadId = Environment.CurrentManagedThreadId;
 
 			this._hideThumbnailsDelay = this._configuration.HideThumbnailsDelay;
 
@@ -117,23 +126,45 @@ namespace EveOPreview.Services
 			RegisterSpotlightHotkey(this._configuration.ToggleSpotlightHotkeys?.Select(x => this._configuration.StringToKey(x)));
 		}
 
+		// Invariante de concorrência do dicionário de views (issue #59 / auditoria TM-01 P1).
+		// Não existe lock: o dicionário é confinado à thread de UI. Um acesso a partir de
+		// outra thread é defeito de programação e falha alto, em vez de corromper o estado.
+		internal static void EnsureUiThread(int uiThreadId, string operation)
+		{
+			int currentThreadId = Environment.CurrentManagedThreadId;
+			if (currentThreadId != uiThreadId)
+			{
+				throw new InvalidOperationException(
+					$"{operation} deve ser executado na thread de UI (esperada {uiThreadId}, atual {currentThreadId}).");
+			}
+		}
+
+		private void EnsureThumbnailViewsThread(string operation)
+		{
+			EnsureUiThread(this._uiThreadId, operation);
+		}
+
 		public IThumbnailView GetClientByTitle(string title)
 		{
+			this.EnsureThumbnailViewsThread(nameof(GetClientByTitle));
 			return _thumbnailViews.FirstOrDefault(x => x.Value.Title == title).Value;
 		}
 
 		public IThumbnailView GetClientByPointer(IntPtr ptr)
 		{
+			this.EnsureThumbnailViewsThread(nameof(GetClientByPointer));
 			return _thumbnailViews.FirstOrDefault(x => x.Key == ptr).Value;
 		}
 
 		public IThumbnailView GetActiveClient()
 		{
+			this.EnsureThumbnailViewsThread(nameof(GetActiveClient));
 			return GetClientByPointer(this._activeClient.Handle);
 		}
 
 		public void SetActive(KeyValuePair<IntPtr, IThumbnailView> newClient)
 		{
+			this.EnsureThumbnailViewsThread(nameof(SetActive));
 			this.GetActiveClient()?.ClearBorder();
 #if LINUX
 			this._windowManager.ActivateWindow(newClient.Key, newClient.Value.Title);
@@ -148,6 +179,7 @@ namespace EveOPreview.Services
 
 		public void MinimizeAllClients()
 		{
+			this.EnsureThumbnailViewsThread(nameof(MinimizeAllClients));
 			foreach (var x in _thumbnailViews.Reverse())
 			{
 				this._windowManager.MinimizeWindow(x.Value.Id, this._configuration.WindowsAnimationStyle, false);
@@ -155,6 +187,7 @@ namespace EveOPreview.Services
 		}
 		public void CycleNextClient(bool isForwards, Dictionary<string, int> cycleOrder)
 		{
+			this.EnsureThumbnailViewsThread(nameof(CycleNextClient));
 			IOrderedEnumerable<KeyValuePair<string, int>> clientOrder;
 			Dictionary<string, int> _cycleOrder = new Dictionary<string, int>(cycleOrder);
 
@@ -640,6 +673,7 @@ namespace EveOPreview.Services
 
 		public void Start()
 		{
+			this.EnsureThumbnailViewsThread(nameof(Start));
 			// Um Start após um Stop anterior recomeça o ciclo de vida com um token novo.
 			// O token antigo não é descartado aqui: operações ainda em voo podem tê-lo capturado.
 			this._lifetimeCancellation = new CancellationTokenSource();
@@ -651,16 +685,19 @@ namespace EveOPreview.Services
 
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
+			// Capturado antes do primeiro await: a varredura final precisa voltar para a
+			// thread de UI, dona de _spotlightViews (issue #59). Sem contexto de
+			// sincronização (testes ou host sem UI) não existe thread de UI para onde
+			// despachar, então a varredura roda no thread atual.
+			SynchronizationContext uiContext = SynchronizationContext.Current;
+
 			this._thumbnailUpdateTimer.Stop();
 
 			CancellationTokenSource lifetimeCancellation = this._lifetimeCancellation;
 			this._lifetimeCancellation = null;
 			lifetimeCancellation?.Cancel();
 
-			foreach (IntPtr id in this._spotlightViews.Keys.ToList())
-			{
-				this.CloseSpotlightView(id);
-			}
+			this.CloseAllSpotlightViews();
 
 			bool drained = false;
 			try
@@ -671,12 +708,10 @@ namespace EveOPreview.Services
 				drained = true;
 
 				// Um tick que já estava em execução pode ter criado um spotlight depois da
-				// primeira passada de fechamento. Fecha o que restar para não deixar janela
-				// pendurada no encerramento (CloseSpotlightView não dispara trabalho rastreado).
-				foreach (IntPtr id in this._spotlightViews.Keys.ToList())
-				{
-					this.CloseSpotlightView(id);
-				}
+				// primeira passada de fechamento. Fecha o que restar na thread de UI para não
+				// deixar janela pendurada no encerramento (CloseSpotlightView não dispara
+				// trabalho rastreado).
+				await RunOnThreadAsync(uiContext, this.CloseAllSpotlightViews).ConfigureAwait(false);
 			}
 			finally
 			{
@@ -687,8 +722,45 @@ namespace EveOPreview.Services
 			}
 		}
 
+		private void CloseAllSpotlightViews()
+		{
+			foreach (IntPtr id in this._spotlightViews.Keys.ToList())
+			{
+				this.CloseSpotlightView(id);
+			}
+		}
+
+		// Executa a ação no contexto informado. Se já estamos nele (ou se não há contexto),
+		// executa inline. Usado para devolver à thread de UI o trabalho que precisa tocar
+		// o estado confinado depois de um await com ConfigureAwait(false).
+		private static async Task RunOnThreadAsync(SynchronizationContext context, Action action)
+		{
+			if (context == null || SynchronizationContext.Current == context)
+			{
+				action();
+				return;
+			}
+
+			TaskCompletionSource completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			context.Post(_ =>
+			{
+				try
+				{
+					action();
+					completion.TrySetResult();
+				}
+				catch (Exception error)
+				{
+					completion.TrySetException(error);
+				}
+			}, null);
+
+			await completion.Task.ConfigureAwait(false);
+		}
+
 		private void ThumbnailUpdateTimerTick(object sender, EventArgs e)
 		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailUpdateTimerTick));
 			this.UpdateThumbnailsList();
 			this.RefreshThumbnails();
 		}
@@ -696,8 +768,12 @@ namespace EveOPreview.Services
 		private void UpdateThumbnailsList() =>
 			this.RunTracked(nameof(UpdateThumbnailsList), this.UpdateThumbnailsListCore);
 
+		// O trabalho síncrono deste método (toda a manipulação de _thumbnailViews) acontece
+		// antes do primeiro await. Mantenha essa ordem: a continuação do Publish não deve
+		// voltar a tocar o dicionário.
 		private async Task UpdateThumbnailsListCore(CancellationToken cancellationToken)
 		{
+			this.EnsureThumbnailViewsThread(nameof(UpdateThumbnailsListCore));
 			this._processMonitor.GetUpdatedProcesses(out ICollection<IProcessInfo> addedProcesses, out ICollection<IProcessInfo> updatedProcesses, out ICollection<IProcessInfo> removedProcesses);
 
 			List<string> viewsAdded = new List<string>();
@@ -792,6 +868,7 @@ namespace EveOPreview.Services
 		// An already-removed handle must not interrupt refresh of the remaining clients.
 		internal bool TryRemoveThumbnail(IProcessInfo process, ICollection<string> viewsRemoved)
 		{
+			this.EnsureThumbnailViewsThread(nameof(TryRemoveThumbnail));
 			if (!this._thumbnailViews.TryGetValue(process.Handle, out IThumbnailView view))
 			{
 				return false;
@@ -820,6 +897,7 @@ namespace EveOPreview.Services
 
 		private void RefreshThumbnails()
 		{
+			this.EnsureThumbnailViewsThread(nameof(RefreshThumbnails));
 			// TODO Split this method
 			IntPtr foregroundWindowHandle = this._windowManager.GetForegroundWindowHandle();
 
@@ -984,6 +1062,7 @@ namespace EveOPreview.Services
 
 		public void UpdateSpotlights()
 		{
+			this.EnsureThumbnailViewsThread(nameof(UpdateSpotlights));
 			this.DisableViewEvents();
 
 			this.SyncSpotlightViews();
@@ -1020,10 +1099,12 @@ namespace EveOPreview.Services
 
 		public void UpdateThumbnailsSize()
 		{
+			this.EnsureThumbnailViewsThread(nameof(UpdateThumbnailsSize));
 			this.SetThumbnailsSize(this._configuration.ThumbnailSize);
 		}
 		public void UpdateCycleGroupIndicator()
 		{
+			this.EnsureThumbnailViewsThread(nameof(UpdateCycleGroupIndicator));
 			this.SetCycleGroupIndicator(this._configuration.CycleGroupIndicatorAnchor);
 		}
 
@@ -1055,6 +1136,7 @@ namespace EveOPreview.Services
 
 		public void UpdateThumbnailFrames()
 		{
+			this.EnsureThumbnailViewsThread(nameof(UpdateThumbnailFrames));
 			this.DisableViewEvents();
 
 			foreach (KeyValuePair<IntPtr, IThumbnailView> entry in this._thumbnailViews)
@@ -1101,6 +1183,7 @@ namespace EveOPreview.Services
 
 		private void ThumbnailViewFocused(IntPtr id)
 		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailViewFocused));
 			if (this._isHoverEffectActive)
 			{
 				return;
@@ -1121,6 +1204,7 @@ namespace EveOPreview.Services
 
 		private void ThumbnailViewLostFocus(IntPtr id)
 		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailViewLostFocus));
 			if (!this._isHoverEffectActive)
 			{
 				return;
@@ -1140,6 +1224,7 @@ namespace EveOPreview.Services
 
 		private void ThumbnailActivated(IntPtr id)
 		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailActivated));
 			if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView view) || view.IsDisposed)
 			{
 				return;
@@ -1171,6 +1256,10 @@ namespace EveOPreview.Services
 
 					try
 					{
+						// A continuação é despachada para o scheduler de UI capturado acima;
+						// o guarda confirma a premissa antes de tocar o dicionário de views.
+						this.EnsureThumbnailViewsThread(nameof(ThumbnailActivated));
+
 						if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView currentView)
 							|| !ReferenceEquals(currentView, view) || currentView.IsDisposed)
 						{
@@ -1190,6 +1279,7 @@ namespace EveOPreview.Services
 
 		private void ThumbnailDeactivated(IntPtr id, bool switchOut)
 		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailDeactivated));
 			if (switchOut)
 			{
 #if LINUX
@@ -1212,6 +1302,7 @@ namespace EveOPreview.Services
 
 		private void ThumbnailToggleCycleGroup(IntPtr id)
 		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailToggleCycleGroup));
 			var view = GetClientByPointer(id);
 			if ( view != null )
 			{
@@ -1223,8 +1314,11 @@ namespace EveOPreview.Services
 		}
 
 
-		private void ThumbnailViewResized(IntPtr id) =>
+		private void ThumbnailViewResized(IntPtr id)
+		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailViewResized));
 			this.RunTracked(nameof(ThumbnailViewResized), token => this.ThumbnailViewResizedCore(id, token));
+		}
 
 		private async Task ThumbnailViewResizedCore(IntPtr id, CancellationToken cancellationToken)
 		{
@@ -1244,6 +1338,7 @@ namespace EveOPreview.Services
 
 		private void ThumbnailViewMoved(IntPtr id)
 		{
+			this.EnsureThumbnailViewsThread(nameof(ThumbnailViewMoved));
 			if (this._ignoreViewEvents)
 			{
 				return;
