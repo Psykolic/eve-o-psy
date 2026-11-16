@@ -17,3 +17,6 @@ TestResults/
 # Artefatos do agente/worker (nao fazem parte do repositorio)
 summary.md
 .opencode/
+
+__pycache__/
+*.py[cod]
