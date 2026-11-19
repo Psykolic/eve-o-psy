@@ -1,4 +1,5 @@
 ﻿using EveOPreview.Configuration;
+using EveOPreview.Services.Interop;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,14 +14,16 @@ namespace EveOPreview.Services.Implementation
 		#endregion
 
 		#region Private fields
-		private readonly IDictionary<IntPtr, string> _processCache;
+		private readonly ProcessSetDiff _processDiff;
+		private readonly IDictionary<IntPtr, int> _processIds;
 		private IProcessInfo _currentProcessInfo;
 		private readonly IThumbnailConfiguration _configuration;
 		#endregion
 
 		public ProcessMonitor(IThumbnailConfiguration configuration)
 		{
-			this._processCache = new Dictionary<IntPtr, string>(512);
+			this._processDiff = new ProcessSetDiff(ProcessSetDiff.DefaultRemovalMissThreshold);
+			this._processIds = new Dictionary<IntPtr, int>(512);
 			this._configuration = configuration;
 
 			// This field cannot be initialized properly in constructor
@@ -58,15 +61,60 @@ namespace EveOPreview.Services.Implementation
 
 		public ICollection<IProcessInfo> GetAllProcesses()
 		{
-			ICollection<IProcessInfo> result = new List<IProcessInfo>(this._processCache.Count);
+			IReadOnlyList<ProcessSetEntry> knownProcesses = this._processDiff.Known;
+			ICollection<IProcessInfo> result = new List<IProcessInfo>(knownProcesses.Count);
 
 			// TODO Lock list here just in case
-			foreach (KeyValuePair<IntPtr, string> entry in this._processCache)
+			foreach (ProcessSetEntry entry in knownProcesses)
 			{
-				result.Add(new ProcessInfo(entry.Key, entry.Value));
+				result.Add(new ProcessInfo(entry.Handle, entry.Title));
 			}
 
 			return result;
+		}
+
+		/// <summary>
+		/// Confirma que o handle/processo ainda existe. A ausência temporária do
+		/// MainWindowHandle (cliente sem responder, minimizado ou na tela de login)
+		/// não pode ser tratada como fechamento da janela (issue #139).
+		/// </summary>
+		private bool ShouldKeepKnownHandle(IntPtr handle)
+		{
+			if (User32NativeMethods.IsWindow(handle))
+			{
+				return true;
+			}
+
+			if (!this._processIds.TryGetValue(handle, out int processId))
+			{
+				return false;
+			}
+
+			try
+			{
+				using (Process process = Process.GetProcessById(processId))
+				{
+					if (process.HasExited)
+					{
+						return false;
+					}
+
+					IntPtr currentMainWindowHandle = process.MainWindowHandle;
+
+					// Processo vivo e ainda sem janela principal: a ausência é transitória.
+					// Se ele já expôs outra janela, este handle ficou obsoleto.
+					return currentMainWindowHandle == IntPtr.Zero || currentMainWindowHandle == handle;
+				}
+			}
+			catch (ArgumentException)
+			{
+				// O processo encerrou entre a leitura do handle e esta verificação.
+				return false;
+			}
+			catch (InvalidOperationException)
+			{
+				return false;
+			}
 		}
 
 		public void GetUpdatedProcesses(out ICollection<IProcessInfo> addedProcesses, out ICollection<IProcessInfo> updatedProcesses, out ICollection<IProcessInfo> removedProcesses)
@@ -75,7 +123,7 @@ namespace EveOPreview.Services.Implementation
 			updatedProcesses = new List<IProcessInfo>(16);
 			removedProcesses = new List<IProcessInfo>(16);
 
-			IList<IntPtr> knownProcesses = new List<IntPtr>(this._processCache.Keys);
+			IList<ProcessSetEntry> observedProcesses = new List<ProcessSetEntry>(16);
 			foreach (Process process in Process.GetProcesses())
 			{
 				string processName = process.ProcessName;
@@ -88,36 +136,37 @@ namespace EveOPreview.Services.Implementation
 				IntPtr mainWindowHandle = process.MainWindowHandle;
 				if (mainWindowHandle == IntPtr.Zero)
 				{
-					continue; // No need to monitor non-visual processes
+					continue; // No need to monitor non-visual processes right now
 				}
 
 				string mainWindowTitle = process.MainWindowTitle.Replace("—", "-");
-				this._processCache.TryGetValue(mainWindowHandle, out string cachedTitle);
-
-				if (cachedTitle == null)
-				{
-					// This is a new process in the list
-					this._processCache.Add(mainWindowHandle, mainWindowTitle);
-					addedProcesses.Add(new ProcessInfo(mainWindowHandle, mainWindowTitle));
-				}
-				else
-				{
-					// This is an already known process
-					if (cachedTitle != mainWindowTitle)
-					{
-						this._processCache[mainWindowHandle] = mainWindowTitle;
-						updatedProcesses.Add(new ProcessInfo(mainWindowHandle, mainWindowTitle));
-					}
-
-					knownProcesses.Remove(mainWindowHandle);
-				}
+				observedProcesses.Add(new ProcessSetEntry(mainWindowHandle, mainWindowTitle));
+				this._processIds[mainWindowHandle] = process.Id;
 			}
 
-			foreach (IntPtr index in knownProcesses)
+			ProcessSetDiffResult diff = this._processDiff.Update(observedProcesses, this.ShouldKeepKnownHandle);
+
+			foreach (ProcessSetEntry process in diff.Added)
 			{
-				string title = this._processCache[index];
-				removedProcesses.Add(new ProcessInfo(index, title));
-				this._processCache.Remove(index);
+				addedProcesses.Add(new ProcessInfo(process.Handle, process.Title));
+			}
+
+			foreach (ProcessSetEntry process in diff.Updated)
+			{
+				updatedProcesses.Add(new ProcessInfo(process.Handle, process.Title));
+			}
+
+			foreach (ProcessSetEntry process in diff.Removed)
+			{
+				this._processIds.Remove(process.Handle);
+
+				Trace.TraceInformation(
+					"ProcessMonitor: removendo janela 0x{0:X} ('{1}') após {2} ciclos sem MainWindowHandle; motivo: processo/handle não existe mais.",
+					process.Handle.ToInt64(),
+					process.Title,
+					process.Misses);
+
+				removedProcesses.Add(new ProcessInfo(process.Handle, process.Title));
 			}
 		}
 	}
