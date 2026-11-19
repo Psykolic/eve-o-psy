@@ -34,7 +34,7 @@ namespace EveOPreview
 			ExceptionHandler handler = new ExceptionHandler();
 			handler.SetupExceptionHandlers();
 
-			IApplicationController controller = Program.InitializeApplicationController();
+			IApplicationController controller = CompositionRoot.Create();
 
 			Program.InitializeWinForms();
 
@@ -76,45 +76,5 @@ namespace EveOPreview
 #endif
 		}
 
-		private static IApplicationController InitializeApplicationController()
-		{
-			IIocContainer container = new LightInjectContainer();
-
-			// Singleton registration is used for services
-			// Low-level services
-			// IWindowManager agora vive no Core (issue #162), então a varredura de
-			// implementações precisa apontar para o assembly do Infrastructure.
-			container.Register(typeof(IWindowManager), typeof(EveOPreview.Services.Implementation.WindowManager).Assembly);
-			container.Register<IStaticThumbnailProvider>();
-			container.Register<IProcessMonitor>();
-
-			// MediatR
-			container.Register<IMediator, MediatR.Mediator>();
-			container.RegisterInstance<ServiceFactory>(t => container.Resolve(t));
-			container.Register(typeof(INotificationHandler<>), typeof(Program).Assembly);
-			container.Register(typeof(IRequestHandler<>), typeof(Program).Assembly);
-			container.Register(typeof(IRequestHandler<,>), typeof(Program).Assembly);
-
-			// Configuration services
-			container.Register<IConfigurationStorage>();
-			container.Register<IAppConfig>();
-			container.Register<IThumbnailConfiguration>();
-
-			// Application services
-			container.Register<IThumbnailManager>();
-			container.Register<IThumbnailViewFactory>();
-			container.Register<IThumbnailDescription>();
-
-			IApplicationController controller = new ApplicationController(container);
-
-			// UI classes
-			controller.RegisterView<StaticThumbnailView, StaticThumbnailView>();
-			controller.RegisterView<LiveThumbnailView, LiveThumbnailView>();
-
-			controller.RegisterView<IMainFormView, MainForm>();
-			controller.RegisterInstance(new ApplicationContext());
-
-			return controller;
-		}
 	}
 }

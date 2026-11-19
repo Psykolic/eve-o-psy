@@ -22,5 +22,6 @@ namespace EveOPreview
 		object Resolve(Type serviceType);
 		IEnumerable<object> ResolveAll(Type serviceType);
 		bool IsRegistered<TService>();
+		bool IsRegistered(Type serviceType);
 	}
 }

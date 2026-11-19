@@ -51,3 +51,41 @@ sobe normalmente. O workflow de release já roda a partir do workspace do runner
 - `PublishSingleFile` continua funcionando com os quatro assemblies; a variante multi-file (usada no
   release por causa do Wine 9) contém todas as dependências.
 - Smoke validado; `release.yml` permanece intocado (área protegida).
+
+## Smoke manual no Windows (19/11/2026)
+
+Executado no PC do mantenedor, com 9 clientes EVE reais abertos, sobre o build do `main`
+(`efb382e`, pos-Onda 5) empacotado com `dotnet publish -r win-x64 --self-contained
+-p:PublishSingleFile=false`.
+
+| Item | Resultado |
+|---|---|
+| Janela principal | OK (minimizada para a tray conforme `MinimizeToTray`) |
+| Thumbnails | 9 views `EVE - <personagem>` com conteudo DWM ao vivo |
+| Overlay label | OK, com `OverlayLabelFont` migrado (`MS Gothic, 8.25pt, style=Bold`) |
+| Hotkeys globais | F14 ciclo para frente (`IsTupiDo` -> `Red Spikee`) e F13 para tras (volta) |
+| Spotlight | 3 views de spotlight criadas (invisiveis, como esperado) |
+| Config real | lida e reescrita **identica** (6496 bytes, diff linha a linha vazio) |
+| Fechamento | sem crash log |
+
+### Regressoes encontradas (e corrigidas antes do release)
+
+O smoke pegou dois erros de injecao de dependencia que a CI nao cobria, ambos
+consequencia das Ondas 4a/4b:
+
+1. **Handlers do MediatR** ??? `Program` registrava os handlers a partir de
+   `typeof(Program).Assembly`, mas desde a 4b eles vivem em `EveO.Presentation`.
+   Resultado: `Error constructing handler ... StartService` no primeiro
+   `MainFormPresenter.Activate()`.
+2. **`IProcessMonitor`** ??? o contrato ficou no Core e a implementacao no Infrastructure
+   (Onda 2); `Register<IProcessMonitor>()` varria o assembly do contrato e nao achava
+   a implementacao. O `ThumbnailManager` nao era construido.
+
+Correcao: a raiz de composicao saiu do exe para `EveO.Presentation/ApplicationBase/CompositionRoot.cs`
+(com `Create(IIocContainer)` para os testes), o registro dos handlers aponta para o
+assembly da propria CompositionRoot e os servicos cujo contrato vive no Core apontam
+explicitamente para o Infrastructure. `Program` ficou so com o ciclo de vida.
+
+Guarda de regressao: `EveO.Tests/CompositionRootTests.cs` valida o grafo real
+(handler registrado + `ThumbnailManager` resolvivel). Verificado que o teste falha
+quando a correcao e revertida.

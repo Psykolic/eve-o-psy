@@ -21,6 +21,11 @@ namespace EveOPreview
 			return this._container.CanGetInstance(typeof(TService), "");
 		}
 
+		public bool IsRegistered(Type serviceType)
+		{
+			return this._container.CanGetInstance(serviceType, "");
+		}
+
 		public void Register(Type serviceType, Assembly container)
 		{
 			if (!serviceType.IsInterface)
