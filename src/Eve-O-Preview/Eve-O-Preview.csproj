@@ -105,6 +105,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\EveO.Core\EveO.Core.csproj" />
+    <ProjectReference Include="..\EveO.Infrastructure\EveO.Infrastructure.csproj" />
+    <ProjectReference Include="..\EveO.Presentation\EveO.Presentation.csproj" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.6.2">
