@@ -42,6 +42,8 @@ namespace EveOPreview.View
 			this.MouseUp += new System.Windows.Forms.MouseEventHandler(this.MouseUp_Handler);
 			this.Move += new System.EventHandler(this.Move_Handler);
 			this.Resize += new System.EventHandler(this.Resize_Handler);
+			this.ResizeBegin += new System.EventHandler(this.ResizeBegin_Handler);
+			this.ResizeEnd += new System.EventHandler(this.ResizeEnd_Handler);
 			this.ResumeLayout(false);
 
         }

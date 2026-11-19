@@ -372,6 +372,11 @@ namespace EveOPreview.Presenters
 			this._suppressSizeNotifications = true;
 			this.View.ThumbnailSize = size;
 			this._suppressSizeNotifications = false;
+
+			// O tamanho notificado veio de um resize do usuário (issue #138). Mantém a
+			// configuração em sincronia com a UI para que o próximo Save grave o valor
+			// exibido, em vez de ressuscitar o tamanho antigo do JSON.
+			this._configuration.ThumbnailSize = size;
 		}
 
 		private void OpenDocumentationLink()

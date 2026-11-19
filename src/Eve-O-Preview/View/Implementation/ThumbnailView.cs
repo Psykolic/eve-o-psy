@@ -46,7 +46,12 @@ namespace EveOPreview.View
 		private Rectangle _resizeStartBounds;
 
 		private double _opacity;
-		 
+
+		// Tamanho no início do resize do usuário: só o tamanho final dele pode ser
+		// propagado para as demais miniaturas e para a configuração (issue #138).
+		private Size _userResizeStartSize;
+		private Size _customResizeStartSize;
+
 		private DateTime _suppressResizeEventsTimestamp;
 		private Size _baseZoomSize;
 		private Point _baseZoomLocation;
@@ -586,8 +591,38 @@ namespace EveOPreview.View
 				return;
 			}
 
+			// Apenas marca o redesenho. Resizes programáticos (SetFrames, limites,
+			// restauração de layout, zoom, DPI) não podem propagar tamanho; a
+			// propagação só acontece no fim de um resize do usuário (issue #138).
 			this._isSizeChanged = true;
+		}
 
+		private void ResizeBegin_Handler(object sender, EventArgs e)
+		{
+			// WM_ENTERSIZEMOVE: começo do arrasto de borda (ou de movimento).
+			this._userResizeStartSize = this.ClientSize;
+		}
+
+		private void ResizeEnd_Handler(object sender, EventArgs e)
+		{
+			// WM_EXITSIZEMOVE: o arrasto terminou, então o tamanho agora é o final.
+			if (this.ClientSize == this._userResizeStartSize)
+			{
+				// Foi apenas um movimento de janela, não um redimensionamento.
+				return;
+			}
+
+			this.NotifyUserResize();
+		}
+
+		private void NotifyUserResize()
+		{
+			if (DateTime.UtcNow < this._suppressResizeEventsTimestamp)
+			{
+				return;
+			}
+
+			this._isSizeChanged = true;
 			this.ThumbnailResized?.Invoke(this.Id);
 		}
 
@@ -725,6 +760,7 @@ namespace EveOPreview.View
 
 			this._isCustomMouseModeActive = true;
 			this._baseMousePosition = Control.MousePosition;
+			this._customResizeStartSize = this.Size;
 		}
 
 		private void ProcessCustomMouseMode(bool leftButton, bool rightButton)
@@ -740,8 +776,17 @@ namespace EveOPreview.View
                 // Right button only trigger thumbnail movement
                 if (leftButton && rightButton)
                 {
-                    this.Size = new Size(this.Size.Width + offsetX, this.Size.Height + offsetY);
-                    this._baseZoomSize = this.Size;
+                    Size newSize = new Size(this.Size.Width + offsetX, this.Size.Height + offsetY);
+                    if (newSize != this.Size)
+                    {
+                        this.Size = newSize;
+                        this._baseZoomSize = newSize;
+
+                        // Resize feito pelo usuário (botões esquerdo+direito) deve notificar
+                        // com o tamanho final, caso contrário o resize é tratado como
+                        // programático e não propaga (issue #138).
+                        this.NotifyUserResize();
+                    }
                 }
                 else
                 {
@@ -754,7 +799,19 @@ namespace EveOPreview.View
 
 		private void ExitCustomMouseMode()
 		{
+			if (!this._isCustomMouseModeActive)
+			{
+				return;
+			}
+
 			this._isCustomMouseModeActive = false;
+
+			// O modo customizado também permite redimensionar (botões esquerdo+direito);
+			// propaga só no fim da interação (issue #138).
+			if (this.Size != this._customResizeStartSize)
+			{
+				this.NotifyUserResize();
+			}
 		}
 		#endregion
 
@@ -869,6 +926,13 @@ namespace EveOPreview.View
 			this._isResizing = false;
 			this._resizeEdge = SpotlightResizeEdge.None;
 			this.UpdateResizeCursor();
+
+			// O redimensionamento manual do spotlight também é interação do usuário:
+			// propaga só no fim do arrasto (issue #138).
+			if (this.Size != this._resizeStartBounds.Size)
+			{
+				this.NotifyUserResize();
+			}
 		}
 
 		private void UpdateResizeCursor()

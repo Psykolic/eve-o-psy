@@ -28,7 +28,7 @@ namespace EveOPreview.Services
 		private const int FORCED_REFRESH_CYCLE_THRESHOLD = 2;
 		private const int DEFAULT_LOCATION_CHANGE_NOTIFICATION_DELAY = 2;
 
-		private const string DEFAULT_CLIENT_TITLE = "EVE";
+		private const string DEFAULT_CLIENT_TITLE = ThumbnailSizePolicy.DefaultClientTitle;
 		#endregion
 
 		#region Private fields
@@ -781,13 +781,11 @@ namespace EveOPreview.Services
 
 			foreach (IProcessInfo process in addedProcesses)
 			{
-				Size initialSize = this._configuration.ThumbnailSize;
-				if (this._configuration.PerClientThumbnailSize.Any(x => x.Key == process.Title))
-				{
-					initialSize = this._configuration.PerClientThumbnailSize[process.Title];
-				}
+				// Usa o tamanho por cliente quando configurado (issue #138). Antes o
+				// initialSize era calculado e descartado na chamada da fábrica.
+				Size initialSize = this.GetConfiguredThumbnailSize(process.Title);
 
-				IThumbnailView view = this._thumbnailViewFactory.Create(process.Handle, process.Title, this._configuration.ThumbnailSize);
+				IThumbnailView view = this._thumbnailViewFactory.Create(process.Handle, process.Title, initialSize);
 				view.IsOverlayEnabled = this._configuration.ShowThumbnailOverlays;
 				view.IsExcludedFromCycleGroup = false;
 				view.SetFrames(this._configuration.ShowThumbnailFrames);
@@ -1327,13 +1325,48 @@ namespace EveOPreview.Services
 				return;
 			}
 
-			IThumbnailView view = this._thumbnailViews[id];
+			if (!this._thumbnailViews.TryGetValue(id, out IThumbnailView view))
+			{
+				return;
+			}
 
-			this.SetThumbnailsSize(view.ThumbnailSize);
+			// O resize da thumb de login não dita o tamanho das demais miniaturas
+			// (issue #138). Ela apenas redesenha.
+			if (view.Title == ThumbnailManager.DEFAULT_CLIENT_TITLE)
+			{
+				view.Refresh(false);
+				return;
+			}
+
+			Size minimumSize = this._configuration.ThumbnailMinimumSize;
+			Size maximumSize = this._configuration.ThumbnailMaximumSize;
+			Size configuredSize = this.GetConfiguredThumbnailSize(view.Title);
+
+			// A view só dispara ThumbnailResized no fim de um resize do usuário,
+			// então aqui isUserResize é sempre true. Ainda assim a política confere
+			// se o tamanho realmente mudou e aplica o clamp antes de propagar.
+			if (!ThumbnailSizePolicy.ShouldPropagateResize(configuredSize, view.ThumbnailSize, minimumSize, maximumSize, isUserResize: true))
+			{
+				view.Refresh(false);
+				return;
+			}
+
+			Size size = ThumbnailSizePolicy.ClampToLimits(view.ThumbnailSize, minimumSize, maximumSize);
+
+			this.SetThumbnailsSize(size);
 
 			view.Refresh(false);
 
-			await this._mediator.Publish(new ThumbnailActiveSizeUpdated(view.ThumbnailSize), cancellationToken);
+			await this._mediator.Publish(new ThumbnailActiveSizeUpdated(size), cancellationToken);
+		}
+
+		private Size GetConfiguredThumbnailSize(string title)
+		{
+			Size? perClientSize = this._configuration.PerClientThumbnailSize.TryGetValue(title, out Size configuredSize)
+				? configuredSize
+				: (Size?)null;
+
+			return ThumbnailSizePolicy.ResolveInitialThumbnailSize(this._configuration.ThumbnailSize, perClientSize, title);
 		}
 
 		private void ThumbnailViewMoved(IntPtr id)
