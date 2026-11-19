@@ -16,4 +16,9 @@
       <_Parameter1>EveO.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>EveO.Presentation</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

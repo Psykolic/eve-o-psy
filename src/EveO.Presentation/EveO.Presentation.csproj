@@ -10,4 +10,17 @@
     <ProjectReference Include="..\EveO.Core\EveO.Core.csproj" />
     <ProjectReference Include="..\EveO.Infrastructure\EveO.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="LightInject">
+      <Version>7.0.1</Version>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Eve-O-Preview</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>EveO.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>
