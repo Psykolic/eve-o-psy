@@ -17,6 +17,12 @@ namespace EveO.Tests.Windows;
 /// Exercises the real WindowManager.GetStaticThumbnail Win32/GDI code path against
 /// a controlled WinForms window. No EVE client or Wine compatibility flag required.
 /// </summary>
+/// <remarks>
+/// Runs in the same xUnit collection as the Windows integration tests (#124). Both create
+/// real windows and this test measures process-wide GetGuiResources, so running them in
+/// parallel makes one test's USER handles look like a leak in the other.
+/// </remarks>
+[Collection("WindowsIntegration")]
 public sealed class GdiStressTests
 {
     private const int CaptureCount = 1000;
