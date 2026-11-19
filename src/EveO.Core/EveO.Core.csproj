@@ -7,4 +7,23 @@
     <RootNamespace>EveOPreview.Services</RootNamespace>
     <AssemblyName>EveO.Core</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR">
+      <Version>9.0.0</Version>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Eve-O-Preview</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>EveO.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>EveO.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>
