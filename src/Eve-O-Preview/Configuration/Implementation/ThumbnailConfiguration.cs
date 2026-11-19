@@ -139,6 +139,7 @@ namespace EveOPreview.Configuration.Implementation
 			this.ThumbnailSize = new Size(384, 216);
 			this.ThumbnailMinimumSize = ThumbnailConfiguration.DEFAULT_THUMBNAIL_MINIMUM_SIZE;
 			this.ThumbnailMaximumSize = new Size(960, 540);
+			this.ThumbnailKeepAspectRatio = true;
 
 			this.EnableThumbnailSnap = true;
 
@@ -295,6 +296,7 @@ namespace EveOPreview.Configuration.Implementation
 		public Size ThumbnailSize { get; set; }
 		public Size ThumbnailMaximumSize { get; set; }
 		public Size ThumbnailMinimumSize { get; set; }
+		public bool ThumbnailKeepAspectRatio { get; set; }
 
 		public bool EnableThumbnailSnap { get; set; }
 

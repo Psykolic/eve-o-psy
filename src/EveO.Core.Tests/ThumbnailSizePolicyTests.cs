@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using EveOPreview.Services;
 using FluentAssertions;
@@ -97,6 +98,72 @@ namespace EveO.Tests.Services
 				MaximumSize,
 				isUserResize: true)
 				.Should().BeFalse();
+		}
+
+		[Fact]
+		public void Test_CalculateAspectRatioSize_WidthChange_KeepsRatio()
+		{
+			var size = ThumbnailSizePolicy.CalculateAspectRatioSize(
+				new Size(52, 39), ThumbnailSizePolicy.Dimension.Width, 80,
+				MinimumSize, MaximumSize, keepAspectRatio: true);
+
+			size.Should().Be(new Size(80, 60));
+		}
+
+		[Fact]
+		public void Test_CalculateAspectRatioSize_HeightChange_KeepsRatio()
+		{
+			var size = ThumbnailSizePolicy.CalculateAspectRatioSize(
+				new Size(52, 39), ThumbnailSizePolicy.Dimension.Height, 90,
+				MinimumSize, MaximumSize, keepAspectRatio: true);
+
+			size.Should().Be(new Size(120, 90));
+		}
+
+		[Fact]
+		public void Test_CalculateAspectRatioSize_WidthAboveMaximum_RecomputesHeight()
+		{
+			var size = ThumbnailSizePolicy.CalculateAspectRatioSize(
+				new Size(52, 39), ThumbnailSizePolicy.Dimension.Width, 5000,
+				MinimumSize, MaximumSize, keepAspectRatio: true);
+
+			size.Should().Be(new Size(720, 540));
+		}
+
+		[Fact]
+		public void Test_CalculateAspectRatioSize_HeightBelowMinimum_RecomputesWidth()
+		{
+			var size = ThumbnailSizePolicy.CalculateAspectRatioSize(
+				new Size(52, 39), ThumbnailSizePolicy.Dimension.Height, 10,
+				MinimumSize, MaximumSize, keepAspectRatio: true);
+
+			size.Should().Be(new Size(32, 24));
+		}
+
+		[Fact]
+		public void Test_CalculateAspectRatioSize_WithoutLock_ChangesOnlyOneAxis()
+		{
+			var size = ThumbnailSizePolicy.CalculateAspectRatioSize(
+				new Size(52, 39), ThumbnailSizePolicy.Dimension.Width, 80,
+				MinimumSize, MaximumSize, keepAspectRatio: false);
+
+			size.Should().Be(new Size(80, 39));
+		}
+
+		[Fact]
+		public void Test_CalculateAspectRatioSize_RatioStaysWithinOnePixel()
+		{
+			double original = 52.0 / 39.0;
+
+			foreach (int width in new[] { 53, 77, 101, 333 })
+			{
+				var size = ThumbnailSizePolicy.CalculateAspectRatioSize(
+					new Size(52, 39), ThumbnailSizePolicy.Dimension.Width, width,
+					MinimumSize, MaximumSize, keepAspectRatio: true);
+
+				double achieved = (double)size.Width / size.Height;
+				Math.Abs(achieved - original).Should().BeLessThan(0.05);
+			}
 		}
 
 		[Fact]

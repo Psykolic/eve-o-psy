@@ -162,6 +162,7 @@ namespace EveOPreview.Presenters
 
 			this.View.SetThumbnailSizeLimitations(this._configuration.ThumbnailMinimumSize, this._configuration.ThumbnailMaximumSize);
 			this.View.ThumbnailSize = this._configuration.ThumbnailSize;
+			this.View.KeepAspectRatio = this._configuration.ThumbnailKeepAspectRatio;
 
 			this.View.EnableThumbnailZoom = this._configuration.ThumbnailZoomEnabled;
 			this.View.ThumbnailZoomFactor = this._configuration.ThumbnailZoomFactor;
@@ -214,6 +215,7 @@ namespace EveOPreview.Presenters
 			this._configuration.EnablePerClientThumbnailLayouts = this.View.EnablePerClientThumbnailLayouts;
 
 			this._configuration.ThumbnailSize = this.View.ThumbnailSize;
+			this._configuration.ThumbnailKeepAspectRatio = this.View.KeepAspectRatio;
 
 			this._configuration.ThumbnailZoomEnabled = this.View.EnableThumbnailZoom;
 			this._configuration.ThumbnailZoomFactor = this.View.ThumbnailZoomFactor;

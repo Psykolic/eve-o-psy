@@ -61,6 +61,7 @@ namespace EveOPreview.Configuration
 		Size ThumbnailSize { get; set; }
 		Size ThumbnailMinimumSize { get; set; }
 		Size ThumbnailMaximumSize { get; set; }
+		bool ThumbnailKeepAspectRatio { get; set; }
 
 		bool EnableThumbnailSnap { get; set; }
 

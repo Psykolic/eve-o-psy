@@ -1,3 +1,4 @@
+using EveOPreview.Services;
 using EveOPreview.Configuration;
 using EveOPreview.Properties;
 using System;
@@ -26,6 +27,7 @@ namespace EveOPreview.View
 		private string _iconName;
 		private readonly HashSet<string> _spotlightClients;
 		private Rectangle _selectedSpotlightRegion;
+		private Size _lastThumbnailSize;
 		#endregion
 
 		#region Private constants
@@ -196,7 +198,19 @@ namespace EveOPreview.View
 			{
 				this.ThumbnailsWidthNumericEdit.Value = value.Width;
 				this.ThumbnailsHeightNumericEdit.Value = value.Height;
+
+				// Guarda o par efetivamente aplicado: ele é a referência de proporção
+				// para a próxima edição do usuário (issue #140).
+				this._lastThumbnailSize = new Size(
+					(int)this.ThumbnailsWidthNumericEdit.Value,
+					(int)this.ThumbnailsHeightNumericEdit.Value);
 			}
+		}
+
+		public bool KeepAspectRatio
+		{
+			get => this.KeepAspectRatioCheckBox.Checked;
+			set => this.KeepAspectRatioCheckBox.Checked = value;
 		}
 
 		public bool EnableThumbnailZoom
@@ -619,15 +633,52 @@ namespace EveOPreview.View
 				return;
 			}
 
-			// Perform some View work that is not properly done in the Control
+			Size previousSize = this._lastThumbnailSize;
+			if (previousSize.Width <= 0 || previousSize.Height <= 0)
+			{
+				previousSize = this.ThumbnailSize;
+			}
+
+			bool changedHeight = sender == this.ThumbnailsHeightNumericEdit;
+			int newValue = changedHeight
+				? (int)this.ThumbnailsHeightNumericEdit.Value
+				: (int)this.ThumbnailsWidthNumericEdit.Value;
+
 			this._suppressEvents = true;
-			Size thumbnailSize = this.ThumbnailSize;
-			thumbnailSize.Width = Math.Min(Math.Max(thumbnailSize.Width, this._minimumSize.Width), this._maximumSize.Width);
-			thumbnailSize.Height = Math.Min(Math.Max(thumbnailSize.Height, this._minimumSize.Height), this._maximumSize.Height);
+
+			Size thumbnailSize = this.KeepAspectRatio
+				? ThumbnailSizePolicy.CalculateAspectRatioSize(
+					previousSize,
+					changedHeight ? ThumbnailSizePolicy.Dimension.Height : ThumbnailSizePolicy.Dimension.Width,
+					newValue,
+					this._minimumSize,
+					this._maximumSize,
+					keepAspectRatio: true)
+				: new Size(
+					Math.Min(Math.Max(changedHeight ? previousSize.Width : newValue, this._minimumSize.Width), this._maximumSize.Width),
+					Math.Min(Math.Max(changedHeight ? newValue : previousSize.Height, this._minimumSize.Height), this._maximumSize.Height));
+
 			this.ThumbnailSize = thumbnailSize;
 			this._suppressEvents = false;
 
 			this.ThumbnailsSizeChanged?.Invoke();
+		}
+
+		private void KeepAspectRatioCheckBox_CheckedChanged(object sender, EventArgs e)
+		{
+			if (this._suppressEvents)
+			{
+				return;
+			}
+
+			// Guarda a preferência e reaplica a proporção do par atual quando ligada.
+			if (this.KeepAspectRatio)
+			{
+				Size current = this.ThumbnailSize;
+				this._lastThumbnailSize = current;
+			}
+
+			this.ApplicationSettingsChanged?.Invoke();
 		}
 
 		private void ActiveClientHighlightColorButton_Click(object sender, EventArgs e)

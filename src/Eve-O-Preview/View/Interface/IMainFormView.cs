@@ -28,6 +28,7 @@ namespace EveOPreview.View
 		bool EnablePerClientThumbnailLayouts { get; set; }
 
 		Size ThumbnailSize { get; set; }
+		bool KeepAspectRatio { get; set; }
 
 		bool EnableThumbnailZoom { get; set; }
 		int ThumbnailZoomFactor { get; set; }

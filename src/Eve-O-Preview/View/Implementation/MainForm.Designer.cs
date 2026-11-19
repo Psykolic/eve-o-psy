@@ -81,6 +81,7 @@ namespace EveOPreview.View
 			ThumbnailSnapToGridSizeXNumericEdit = new NumericUpDown();
 			SnapXLabel = new Label();
 			LockThumbnailLocationCheckbox = new CheckBox();
+			KeepAspectRatioCheckBox = new CheckBox();
 			ThumbnailsWidthNumericEdit = new NumericUpDown();
 			ThumbnailsHeightNumericEdit = new NumericUpDown();
 			ThumbnailOpacityTrackBar = new TrackBar();
@@ -428,6 +429,7 @@ namespace EveOPreview.View
 			ThumbnailSettingsPanel.Controls.Add(ThumbnailSnapToGridSizeXNumericEdit);
 			ThumbnailSettingsPanel.Controls.Add(SnapXLabel);
 			ThumbnailSettingsPanel.Controls.Add(LockThumbnailLocationCheckbox);
+			ThumbnailSettingsPanel.Controls.Add(KeepAspectRatioCheckBox);
 			ThumbnailSettingsPanel.Controls.Add(HeigthLabel);
 			ThumbnailSettingsPanel.Controls.Add(WidthLabel);
 			ThumbnailSettingsPanel.Controls.Add(ThumbnailsWidthNumericEdit);
@@ -545,6 +547,20 @@ namespace EveOPreview.View
 			LockThumbnailLocationCheckbox.TabIndex = 26;
 			LockThumbnailLocationCheckbox.Text = "Lock Thumbnail Location";
 			LockThumbnailLocationCheckbox.UseVisualStyleBackColor = true;
+			// 
+			// KeepAspectRatioCheckBox
+			// 
+			KeepAspectRatioCheckBox.AutoSize = true;
+			KeepAspectRatioCheckBox.Checked = true;
+			KeepAspectRatioCheckBox.CheckState = CheckState.Checked;
+			KeepAspectRatioCheckBox.Location = new Point(185, 66);
+			KeepAspectRatioCheckBox.Margin = new Padding(4);
+			KeepAspectRatioCheckBox.Name = "KeepAspectRatioCheckBox";
+			KeepAspectRatioCheckBox.Size = new Size(118, 19);
+			KeepAspectRatioCheckBox.TabIndex = 30;
+			KeepAspectRatioCheckBox.Text = "Keep aspect ratio";
+			KeepAspectRatioCheckBox.UseVisualStyleBackColor = true;
+			KeepAspectRatioCheckBox.CheckedChanged += this.KeepAspectRatioCheckBox_CheckedChanged;
 			LockThumbnailLocationCheckbox.CheckedChanged += OptionChanged_Handler;
 			// 
 			// HeigthLabel
@@ -1615,6 +1631,7 @@ namespace EveOPreview.View
 		private Label VersionLabel;
 		private CheckBox MinimizeInactiveClientsCheckBox;
         private CheckBox LockThumbnailLocationCheckbox;
+        private CheckBox KeepAspectRatioCheckBox;
         private NumericUpDown ThumbnailSnapToGridSizeYNumericEdit;
         private Label SnapYLabel;
         private NumericUpDown ThumbnailSnapToGridSizeXNumericEdit;
