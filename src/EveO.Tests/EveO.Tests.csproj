@@ -25,7 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Eve-O-Preview\Eve-O-Preview.csproj" />
+    <ProjectReference Include="..\EveO.Presentation\EveO.Presentation.csproj" />
+    <ProjectReference Include="..\EveO.Infrastructure\EveO.Infrastructure.csproj" />
+    <ProjectReference Include="..\EveO.Core\EveO.Core.csproj" />
   </ItemGroup>
 
   <!-- The original WindowManager has no fault-injection overload. -->
