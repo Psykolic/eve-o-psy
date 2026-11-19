@@ -29,6 +29,9 @@ namespace EveOPreview.Services
 		private const int DEFAULT_LOCATION_CHANGE_NOTIFICATION_DELAY = 2;
 
 		private const string DEFAULT_CLIENT_TITLE = ThumbnailSizePolicy.DefaultClientTitle;
+
+		// Último fator de zoom aplicado por hot-reload (issue #125)
+		private int _appliedZoomFactor;
 		#endregion
 
 		#region Private fields
@@ -1703,6 +1706,38 @@ namespace EveOPreview.Services
 			return (left > ThumbnailManager.WINDOW_POSITION_THRESHOLD_LOW) && (left < ThumbnailManager.WINDOW_POSITION_THRESHOLD_HIGH)
 					&& (top > ThumbnailManager.WINDOW_POSITION_THRESHOLD_LOW) && (top < ThumbnailManager.WINDOW_POSITION_THRESHOLD_HIGH)
 					&& (width > ThumbnailManager.WINDOW_SIZE_THRESHOLD) && (height > ThumbnailManager.WINDOW_SIZE_THRESHOLD);
+		}
+
+		public void RefreshTimerInterval()
+		{
+			this._thumbnailUpdateTimer.Interval = new TimeSpan(0, 0, 0, 0, this._configuration.ThumbnailRefreshPeriod);
+		}
+
+		public void RefreshZoomFactor()
+		{
+			// Só aplica quando o fator realmente mudou: aplicar a cada salvamento
+			// redimensionaria todas as thumbs sem o usuário ter pedido (issue #125).
+			int factor = this._configuration.ThumbnailZoomFactor;
+			if (!this._configuration.ThumbnailZoomEnabled || factor == this._appliedZoomFactor)
+			{
+				return;
+			}
+
+			this._appliedZoomFactor = factor;
+
+			this.DisableViewEvents();
+			try
+			{
+				foreach (KeyValuePair<IntPtr, IThumbnailView> entry in this._thumbnailViews)
+				{
+					entry.Value.ZoomIn(ViewZoomAnchorConverter.Convert(entry.Value.ClientZoomAnchor), factor);
+					entry.Value.Refresh(false);
+				}
+			}
+			finally
+			{
+				this.EnableViewEvents();
+			}
 		}
 	}
 }
