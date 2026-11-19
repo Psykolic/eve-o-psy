@@ -20,3 +20,6 @@ summary.md
 
 __pycache__/
 *.py[cod]
+
+# artefatos de build/publish do gate
+dist/

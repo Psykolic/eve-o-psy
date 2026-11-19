@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Permite COMPILAR os alvos net8.0-windows (WinForms/WPF) fora do Windows.
+    Habilita somente o build: executar o app e rodar testes de UI/Win32 continua
+    exigindo Windows (por isso a CI tem uma perna em windows-latest).
+  -->
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+</Project>
