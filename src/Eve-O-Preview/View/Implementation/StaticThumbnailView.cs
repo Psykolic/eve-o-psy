@@ -10,6 +10,7 @@ namespace EveOPreview.View
 	{
 		#region Private fields
 		private readonly PictureBox _thumbnail;
+		private readonly IStaticThumbnailProvider _staticThumbnailProvider;
 		private IThumbnailConfiguration _config;
 		private int _backgroundCaptureTicks;
 		#endregion
@@ -26,7 +27,7 @@ namespace EveOPreview.View
 			return capture;
 		}
 
-		public StaticThumbnailView(IWindowManager windowManager, IThumbnailConfiguration config, IThumbnailManager thumbnailManager)
+		public StaticThumbnailView(IWindowManager windowManager, IStaticThumbnailProvider staticThumbnailProvider, IThumbnailConfiguration config, IThumbnailManager thumbnailManager)
 			: base(windowManager, config, thumbnailManager)
 		{
 			this._thumbnail = new StaticThumbnailImage
@@ -37,6 +38,7 @@ namespace EveOPreview.View
 				Size = new Size(this.ClientSize.Width, this.ClientSize.Height)
 			};
 			this.Controls.Add(this._thumbnail);
+			this._staticThumbnailProvider = staticThumbnailProvider;
 			this._config = config;
 		}
 
@@ -61,7 +63,7 @@ namespace EveOPreview.View
 				this._backgroundCaptureTicks = 0;
 			}
 
-			var thumbnail = this.WindowManager.GetStaticThumbnail(this.Id);
+			var thumbnail = this._staticThumbnailProvider.GetStaticThumbnail(this.Id);
 			if (thumbnail != null)
 			{
 				var displayImage = this.CropThumbnail(thumbnail);

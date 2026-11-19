@@ -7,7 +7,7 @@ using EveOPreview.Services.Interop;
 
 namespace EveOPreview.Services.Implementation
 {
-	public class WindowManager : IWindowManager
+	public class WindowManager : IWindowManager, IStaticThumbnailProvider
 	{
 		#region Private constants
 		private const int WINDOW_SIZE_THRESHOLD = 300;

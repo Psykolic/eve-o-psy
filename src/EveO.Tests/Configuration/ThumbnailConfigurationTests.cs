@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using FluentAssertions;
 using Xunit;
 using EveOPreview.Configuration.Implementation;
+using EveOPreview.UI.Hotkeys;
 
 namespace EveO.Tests.Configuration
 {
@@ -102,7 +103,7 @@ namespace EveO.Tests.Configuration
         public void Test_StringToKey_ConvertsHotkeys()
         {
             var config = new ThumbnailConfiguration();
-            var key = config.StringToKey("Control+F14");
+            var key = HotkeyConverter.ToKeys("Control+F14");
             key.Should().Be(Keys.Control | Keys.F14);
         }
 

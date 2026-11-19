@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Drawing;
-using System.Windows.Forms;
 
 namespace EveOPreview.Configuration
 {
@@ -83,7 +82,13 @@ namespace EveOPreview.Configuration
 		Color PreventPreviewColor { get; set; }
 		int ActiveClientHighlightThickness { get; set; }
 		Color OverlayLabelColor { get; set; }
-		Font OverlayLabelFont { get; set; }
+
+		/// <summary>
+		/// Fonte do rótulo de overlay na forma textual do <c>FontConverter</c>
+		/// (ex.: "Microsoft Sans Serif, 10pt, style=Bold"). O Core não referencia
+		/// <c>System.Drawing.Common</c>, então a conversão para <c>Font</c> fica no executável.
+		/// </summary>
+		string OverlayLabelFont { get; set; }
 
 		string IconName { get; set; }
 		List<string> MinimizeAllClientsHotkeys { get; set; }
@@ -105,9 +110,8 @@ namespace EveOPreview.Configuration
 		ClientLayout GetClientLayout(string currentClient);
 		void SetClientLayout(string currentClient, ClientLayout layout);
 
-		Keys GetClientHotkey(string currentClient);
-		void SetClientHotkey(string currentClient, Keys hotkey);
-		Keys StringToKey(string hotkey);
+		HotkeyBinding GetClientHotkey(string currentClient);
+		void SetClientHotkey(string currentClient, HotkeyBinding hotkey);
 		bool IsPriorityClient(string currentClient);
 		bool IsExecutableToPreview(string processName);
 

@@ -109,24 +109,24 @@ namespace EveOPreview.Services
 
 			this._hideThumbnailsDelay = this._configuration.HideThumbnailsDelay;
 
-			RegisterCycleClientHotkey(this._configuration.CycleGroup1ForwardHotkeys?.Select(x => this._configuration.StringToKey(x)), true, this._configuration.CycleGroup1ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup1BackwardHotkeys?.Select(x => this._configuration.StringToKey(x)), false, this._configuration.CycleGroup1ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup1ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup1ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup1BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup1ClientsOrder);
 
-			RegisterCycleClientHotkey(this._configuration.CycleGroup2ForwardHotkeys?.Select(x => this._configuration.StringToKey(x)), true, this._configuration.CycleGroup2ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup2BackwardHotkeys?.Select(x => this._configuration.StringToKey(x)), false, this._configuration.CycleGroup2ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup2ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup2ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup2BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup2ClientsOrder);
 
-			RegisterCycleClientHotkey(this._configuration.CycleGroup3ForwardHotkeys?.Select(x => this._configuration.StringToKey(x)), true, this._configuration.CycleGroup3ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup3BackwardHotkeys?.Select(x => this._configuration.StringToKey(x)), false, this._configuration.CycleGroup3ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup3ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup3ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup3BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup3ClientsOrder);
 
-			RegisterCycleClientHotkey(this._configuration.CycleGroup4ForwardHotkeys?.Select(x => this._configuration.StringToKey(x)), true, this._configuration.CycleGroup4ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup4BackwardHotkeys?.Select(x => this._configuration.StringToKey(x)), false, this._configuration.CycleGroup4ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup4ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup4ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup4BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup4ClientsOrder);
 
-			RegisterCycleClientHotkey(this._configuration.CycleGroup5ForwardHotkeys?.Select(x => this._configuration.StringToKey(x)), true, this._configuration.CycleGroup5ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup5BackwardHotkeys?.Select(x => this._configuration.StringToKey(x)), false, this._configuration.CycleGroup5ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup5ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup5ClientsOrder);
+			RegisterCycleClientHotkey(this._configuration.CycleGroup5BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup5ClientsOrder);
 
-			RegisterMinimizeAllClientsHotkey(this._configuration.MinimizeAllClientsHotkeys?.Select(x => this._configuration.StringToKey(x)));
+			RegisterMinimizeAllClientsHotkey(this._configuration.MinimizeAllClientsHotkeys?.Select(x => HotkeyConverter.ToKeys(x)));
 
-			RegisterSpotlightHotkey(this._configuration.ToggleSpotlightHotkeys?.Select(x => this._configuration.StringToKey(x)));
+			RegisterSpotlightHotkey(this._configuration.ToggleSpotlightHotkeys?.Select(x => HotkeyConverter.ToKeys(x)));
 		}
 
 		// Invariante de concorrência do dicionário de views (issue #59 / auditoria TM-01 P1).
@@ -821,7 +821,7 @@ namespace EveOPreview.Services
 
 				view.ThumbnailToggleCycleGroup = this.ThumbnailToggleCycleGroup;
 
-				view.RegisterHotkey(this._configuration.GetClientHotkey(view.Title));
+				view.RegisterHotkey(HotkeyConverter.ToKeys(this._configuration.GetClientHotkey(view.Title).Value));
 
 				this.ApplyClientLayout(view);
 				this.ApplyCaptionBar(view);
@@ -856,7 +856,7 @@ namespace EveOPreview.Services
 					view.Title = process.Title;
 					viewsAdded.Add(view.Title);
 
-					view.RegisterHotkey(this._configuration.GetClientHotkey(process.Title));
+					view.RegisterHotkey(HotkeyConverter.ToKeys(this._configuration.GetClientHotkey(process.Title).Value));
 
 					this.ApplyClientLayout(view);
 					this.ApplyCaptionBar(view);

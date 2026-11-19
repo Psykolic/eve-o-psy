@@ -59,6 +59,10 @@ namespace EveOPreview.View
 		private Size _baseZoomMaximumSize;
 
 		private HotkeyHandler _hotkeyHandler;
+		// Fonte do overlay é neutra (string) na config; aqui convertemos e mantemos
+		// um único Font por view (issue #162), evitando alocação de handle GDI a cada uso.
+		private string _overlayLabelFontValue;
+		private Font _overlayLabelFont;
 
 		private IThumbnailConfiguration _config;
 		private Lazy<Color> _myBorderColor;
@@ -123,7 +127,7 @@ namespace EveOPreview.View
 			{
 				this.Text = value;
 				this._overlay.SetOverlayLabel(value.Replace("EVE - ", "").Replace("EVE Frontier - ", "*"));
-				this._overlay.SetPropertiesOverlayLabel(_config.OverlayLabelFont, _config.OverlayLabelColor, _config.OverlayLabelAnchor);
+				this._overlay.SetPropertiesOverlayLabel(this.GetOverlayLabelFont(), _config.OverlayLabelColor, _config.OverlayLabelAnchor);
 				SetDefaultBorderColor();
 				SetPreventPreviews();
 				this._overlay.EnableFakePreview(this.IsPreventPreviews(), false, 0, SystemColors.Control);
@@ -277,6 +281,8 @@ namespace EveOPreview.View
 
 			this.IsActive = false;
 			this._isDisposed = true;
+			this._overlayLabelFont?.Dispose();
+			this._overlayLabelFont = null;
 			this._overlay.Close();
 			base.Close();
 		}
@@ -466,6 +472,19 @@ namespace EveOPreview.View
 			this._hotkeyHandler.Register();
 		}
 
+		private Font GetOverlayLabelFont()
+		{
+			if (!string.Equals(this._overlayLabelFontValue, this._config.OverlayLabelFont, StringComparison.Ordinal))
+			{
+				Font resolved = OverlayLabelFontConverter.FromInvariantString(this._config.OverlayLabelFont);
+				this._overlayLabelFont?.Dispose();
+				this._overlayLabelFont = resolved;
+				this._overlayLabelFontValue = this._config.OverlayLabelFont;
+			}
+
+			return this._overlayLabelFont;
+		}
+
 		public void UnregisterHotkey()
 		{
 			if (this._hotkeyHandler == null)
@@ -554,7 +573,7 @@ namespace EveOPreview.View
 			this._isLocationChanged = false;
 			this._overlay.Size = overlaySize;
 
-			this._overlay.SetPropertiesOverlayLabel(_config.OverlayLabelFont, _config.OverlayLabelColor, _config.OverlayLabelAnchor);
+			this._overlay.SetPropertiesOverlayLabel(this.GetOverlayLabelFont(), _config.OverlayLabelColor, _config.OverlayLabelAnchor);
 
 			this._overlay.Location = overlayLocation;
 			this._overlay.Refresh();

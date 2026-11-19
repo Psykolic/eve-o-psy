@@ -1,6 +1,5 @@
 ﻿using EveOPreview.Configuration;
 using System;
-using System.Drawing;
 
 namespace EveOPreview.Services
 {
@@ -21,6 +20,5 @@ namespace EveOPreview.Services
 		bool IsWindowMaximized(IntPtr handle);
 		bool IsWindowMinimized(IntPtr handle);
 		IDwmThumbnail GetLiveThumbnail(IntPtr destination, IntPtr source);
-		Image GetStaticThumbnail(IntPtr source);
 	}
 }

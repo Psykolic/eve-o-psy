@@ -82,7 +82,10 @@ namespace EveOPreview
 
 			// Singleton registration is used for services
 			// Low-level services
-			container.Register<IWindowManager>();
+			// IWindowManager agora vive no Core (issue #162), então a varredura de
+			// implementações precisa apontar para o assembly do Infrastructure.
+			container.Register(typeof(IWindowManager), typeof(EveOPreview.Services.Implementation.WindowManager).Assembly);
+			container.Register<IStaticThumbnailProvider>();
 			container.Register<IProcessMonitor>();
 
 			// MediatR

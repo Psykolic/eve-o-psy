@@ -143,6 +143,14 @@ namespace EveOPreview.Presenters
 		{
 			this._configurationStorage.Load();
 
+			// A fonte do overlay é neutra (string) no Core; o padrão depende da
+			// resolução de GenericSansSerif, então é definido aqui no executável (issue #162).
+			if (string.IsNullOrWhiteSpace(this._configuration.OverlayLabelFont))
+			{
+				this._configuration.OverlayLabelFont = OverlayLabelFontConverter.ToInvariantString(
+					OverlayLabelFontConverter.CreateDefault());
+			}
+
 			this.View.MinimizeToTray = this._configuration.MinimizeToTray;
 
 			this.View.ThumbnailOpacity = this._configuration.ThumbnailOpacity;
@@ -181,7 +189,7 @@ namespace EveOPreview.Presenters
 			this.View.PreventPreviewColor = this._configuration.PreventPreviewColor;
 
 			this.View.OverlayLabelColor = this._configuration.OverlayLabelColor;
-			this.View.OverlayLabelFont = this._configuration.OverlayLabelFont;
+			this.View.OverlayLabelFont = OverlayLabelFontConverter.FromInvariantString(this._configuration.OverlayLabelFont);
 
 
 			this.View.IconName = this._configuration.IconName;
@@ -250,7 +258,7 @@ namespace EveOPreview.Presenters
 			}
 
 			this._configuration.OverlayLabelColor = this.View.OverlayLabelColor;
-			this._configuration.OverlayLabelFont = this.View.OverlayLabelFont;
+			this._configuration.OverlayLabelFont = OverlayLabelFontConverter.ToInvariantString(this.View.OverlayLabelFont);
 
 			this._configuration.IconName = this.View.IconName;
 
