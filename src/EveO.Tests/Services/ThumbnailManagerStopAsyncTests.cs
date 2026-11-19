@@ -228,8 +228,13 @@ public sealed class ThumbnailManagerStopAsyncTests
         public override void WriteLine(string? message) => this.Write(message);
     }
 
+    // Testes sincronos de proposito: o ThumbnailManager exige que Start() e os handlers
+    // rodem na thread que o construiu (_uiThreadId). Um await devolveria a continuacao
+    // para uma thread do pool e o gate de afinidade dispararia - falha intermitente
+    // exposta pela perna Windows da CI, nao pelo comportamento testado.
+#pragma warning disable xUnit1031 // bloqueio intencional: ver comentario acima
     [Fact]
-    public async Task StopAsync_ClosesSpotlightView_AndCancelledHandlerDoesNotTouchItAgain()
+    public void StopAsync_ClosesSpotlightView_AndCancelledHandlerDoesNotTouchItAgain()
     {
         var harness = new TestHarness();
         var id = new IntPtr(0x9001);
@@ -241,7 +246,7 @@ public sealed class ThumbnailManagerStopAsyncTests
         spotlightViews[id] = view.Object;
 
         harness.Manager.Start();
-        await harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout);
+        harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout).GetAwaiter().GetResult();
 
         view.Verify(v => v.Close(), Times.Once);
         Assert.Empty(spotlightViews);
@@ -258,7 +263,7 @@ public sealed class ThumbnailManagerStopAsyncTests
     }
 
     [Fact]
-    public async Task StopAsync_WithoutInFlightWork_StopsTimerAndAllowsRestart()
+    public void StopAsync_WithoutInFlightWork_StopsTimerAndAllowsRestart()
     {
         var harness = new TestHarness();
         DispatcherTimer timer = GetTimer(harness.Manager);
@@ -266,13 +271,13 @@ public sealed class ThumbnailManagerStopAsyncTests
         harness.Manager.Start();
         Assert.True(timer.IsEnabled);
 
-        await harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout);
+        harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout).GetAwaiter().GetResult();
         Assert.False(timer.IsEnabled);
 
         harness.Manager.Start();
         Assert.True(timer.IsEnabled);
 
-        await harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout);
+        harness.Manager.StopAsync(CancellationToken.None).WaitAsync(Timeout).GetAwaiter().GetResult();
         Assert.False(timer.IsEnabled);
 
         harness.Mediator.Verify(
@@ -280,3 +285,4 @@ public sealed class ThumbnailManagerStopAsyncTests
             Times.Never);
     }
 }
+#pragma warning restore xUnit1031
