@@ -431,6 +431,8 @@ namespace EveOPreview.Services
 			view.ThumbnailRegionSelected = this.SpotlightViewRegionSelected;
 
 			this._spotlightViews.Add(id, view);
+
+			AppOperationLog.Record($"spotlight criada: {title} (0x{id.ToInt64():X})");
 		}
 
 		private void CloseSpotlightView(IntPtr id)
@@ -441,6 +443,8 @@ namespace EveOPreview.Services
 			}
 
 			this._spotlightViews.Remove(id);
+
+			AppOperationLog.Record($"spotlight removida: {view.Title} (0x{id.ToInt64():X})");
 
 			view.ThumbnailResized = null;
 			view.ThumbnailMoved = null;
@@ -604,6 +608,9 @@ namespace EveOPreview.Services
 			{
 				return;
 			}
+
+			AppOperationLog.Record(
+				$"resize spotlight: {view.Title} (0x{id.ToInt64():X}) {view.ThumbnailSize.Width}x{view.ThumbnailSize.Height}");
 
 			this._configuration.SetSpotlightSize(view.Title, view.ThumbnailSize);
 			this._spotlightLayoutDirty = true;
@@ -800,6 +807,8 @@ namespace EveOPreview.Services
 
 				this._thumbnailViews.Add(view.Id, view);
 
+				AppOperationLog.Record($"view criada: {view.Title} (0x{view.Id.ToInt64():X})");
+
 				view.ThumbnailResized = this.ThumbnailViewResized;
 				view.ThumbnailMoved = this.ThumbnailViewMoved;
 				view.ThumbnailFocused = this.ThumbnailViewFocused;
@@ -873,6 +882,9 @@ namespace EveOPreview.Services
 			}
 
 			this._thumbnailViews.Remove(view.Id);
+
+			AppOperationLog.Record($"view removida: {view.Title} (0x{view.Id.ToInt64():X})");
+
 			this.CloseSpotlightView(process.Handle);
 			if (view.Title != ThumbnailManager.DEFAULT_CLIENT_TITLE)
 			{
@@ -1352,6 +1364,9 @@ namespace EveOPreview.Services
 			}
 
 			Size size = ThumbnailSizePolicy.ClampToLimits(view.ThumbnailSize, minimumSize, maximumSize);
+
+			AppOperationLog.Record(
+				$"resize: {view.Title} (0x{id.ToInt64():X}) {size.Width}x{size.Height}");
 
 			this.SetThumbnailsSize(size);
 

@@ -78,5 +78,9 @@ namespace EveOPreview.Services.Interop
 
 		[DllImport("user32.dll")]
 		public static extern long SystemParametersInfo(long uAction, int lpvParam, ref ANIMATIONINFO uParam, int fuWinIni);
+
+		// GR_GDIOBJECTS = 0, GR_USEROBJECTS = 1
+		[DllImport("user32.dll", SetLastError = true)]
+		public static extern uint GetGuiResources(IntPtr processHandle, uint flags);
 	}
 }
