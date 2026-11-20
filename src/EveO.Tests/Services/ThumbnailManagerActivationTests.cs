@@ -1,4 +1,4 @@
-// Regression tests for ThumbnailManager.ThumbnailActivated (TM-04)
+﻿// Regression tests for ThumbnailManager.ThumbnailActivated (TM-04)
 //
 // These tests exercise the private ThumbnailActivated event handler via reflection and
 // install a queued SynchronizationContext on the calling thread so the UI continuation
@@ -18,6 +18,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using EveOPreview.Refresh;
 using EveOPreview.Configuration;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.Services;
@@ -92,7 +93,9 @@ namespace EveO.Tests.Services
                     this.Configuration.Object,
                     this.ProcessMonitor.Object,
                     this.WindowManager.Object,
-                    this.ViewFactory.Object);
+                    this.ViewFactory.Object,
+                    Mock.Of<IClientChangeSignal>(),
+                    Mock.Of<IWindowEventSource>());
             }
 
             private void SetupEmptyHotkeyLists()

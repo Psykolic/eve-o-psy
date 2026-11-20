@@ -1,4 +1,4 @@
-// Confinamento do dicionário de views à thread de UI (issue #59).
+﻿// Confinamento do dicionário de views à thread de UI (issue #59).
 //
 // A auditoria docs/audits/thumbnail-manager-async-lifecycle.md registrava o risco P1 de
 // disputa entre o tick do DispatcherTimer e a continuação de ThumbnailActivated. O código
@@ -10,6 +10,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using EveOPreview.Refresh;
 using EveOPreview.Configuration;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.Services;
@@ -102,7 +103,9 @@ public sealed class ThumbnailManagerUiThreadConfinementTests
                 this.Configuration.Object,
                 this.ProcessMonitor,
                 this.WindowManager.Object,
-                this.ViewFactory.Object);
+                this.ViewFactory.Object,
+                Mock.Of<IClientChangeSignal>(),
+                Mock.Of<IWindowEventSource>());
         }
 
         private void SetupConfiguration()

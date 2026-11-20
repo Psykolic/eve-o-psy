@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+using EveOPreview.Refresh;
 using EveOPreview.Configuration;
 using EveOPreview.Services;
 using EveOPreview.View;
@@ -97,7 +98,9 @@ namespace EveO.Tests.Windows
                 configuration.Object,
                 processMonitor.Object,
                 windowManager.Object,
-                new Mock<IThumbnailViewFactory>().Object);
+                new Mock<IThumbnailViewFactory>().Object,
+                Mock.Of<IClientChangeSignal>(),
+                Mock.Of<IWindowEventSource>());
         }
 
         private static IProcessInfo Process(IntPtr handle)

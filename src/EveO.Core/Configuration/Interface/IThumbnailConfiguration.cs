@@ -33,6 +33,8 @@ namespace EveOPreview.Configuration
 
 		bool MinimizeToTray { get; set; }
 		int ThumbnailRefreshPeriod { get; set; }
+		bool EventDrivenRefresh { get; set; }
+		int ReconciliationPeriod { get; set; }
 		int ThumbnailResizeTimeoutPeriod { get; set; }
 		bool EnableWineCompatibilityMode { get; set; }
 

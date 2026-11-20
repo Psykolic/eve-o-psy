@@ -1,6 +1,7 @@
 using System.Windows.Forms;
 using EveOPreview.Configuration;
 using EveOPreview.Presenters;
+using EveOPreview.Refresh;
 using EveOPreview.Services;
 using EveOPreview.View;
 using MediatR;
@@ -49,6 +50,13 @@ namespace EveOPreview
 			container.Register(typeof(IWindowManager), infrastructureAssembly);
 			container.Register(typeof(IProcessMonitor), infrastructureAssembly);
 			container.Register<IStaticThumbnailProvider>();
+
+			// Fase 2.2 (ADR-006): fonte de eventos de janela + sinal coalescido que
+			// substitui o polling de 500 ms (com reconciliação lenta de segurança).
+			// O sinal PRECISA ser singleton: produtor (hook) e consumidor (ThumbnailManager)
+			// têm que compartilhar o mesmo canal. Register<TService,TImpl>() é transient.
+			container.RegisterInstance<IClientChangeSignal>(new ClientChangeSignal());
+			container.Register(typeof(IWindowEventSource), infrastructureAssembly);
 
 			// MediatR
 			container.Register<IMediator, MediatR.Mediator>();

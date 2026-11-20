@@ -1,8 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Threading;
+using EveOPreview.Refresh;
 using EveOPreview.Configuration;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.Services;
@@ -39,7 +40,9 @@ public sealed class ThumbnailManagerStopAsyncTests
                 this.Configuration.Object,
                 this.ProcessMonitor.Object,
                 this.WindowManager.Object,
-                this.ViewFactory.Object);
+                this.ViewFactory.Object,
+                Mock.Of<IClientChangeSignal>(),
+                Mock.Of<IWindowEventSource>());
         }
 
         private void SetupConfiguration()

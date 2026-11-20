@@ -103,6 +103,10 @@ namespace EveOPreview.Configuration.Implementation
 
 			this.MinimizeToTray = false;
 			this.ThumbnailRefreshPeriod = 500;
+			// Fase 2.2 (ADR-006): refresh event-driven, com tick lento de reconciliacao
+			// para cobrir eventos que nao chegam (UIPI/execucao elevada).
+			this.EventDrivenRefresh = true;
+			this.ReconciliationPeriod = 5000;
 			this.ThumbnailResizeTimeoutPeriod = 500;
 
 #if LINUX
@@ -238,6 +242,22 @@ namespace EveOPreview.Configuration.Implementation
 		public Dictionary<string, ZoomAnchor> PerClientZoomAnchor{ get; set; }
 		public bool MinimizeToTray { get; set; }
 		public int ThumbnailRefreshPeriod { get; set; }
+
+		/// <summary>
+		/// Usa hooks de evento (janelas/processos) em vez de polling para atualizar as
+		/// thumbnails. Quando desligado, o comportamento antigo volta: o timer de
+		/// <see cref="ThumbnailRefreshPeriod"/> faz todo o trabalho (rollback da Fase 2.2).
+		/// </summary>
+		[JsonProperty("EventDrivenRefresh")]
+		public bool EventDrivenRefresh { get; set; }
+
+		/// <summary>
+		/// Intervalo do tick de reconciliacao quando <see cref="EventDrivenRefresh"/> esta ligado.
+		/// Nao e divida tecnica: hooks nao chegam quando o cliente roda elevado e o app nao (UIPI).
+		/// </summary>
+		[JsonProperty("ReconciliationPeriod")]
+		public int ReconciliationPeriod { get; set; }
+
 		public int ThumbnailResizeTimeoutPeriod { get; set; }
 
 		[JsonProperty("WineCompatibilityMode")]
@@ -541,6 +561,8 @@ namespace EveOPreview.Configuration.Implementation
 #else
 			this.ThumbnailRefreshPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailRefreshPeriod, 300, 1000);
 #endif
+			// Nao mexe em EventDrivenRefresh: um valor booleano nao precisa de clamp.
+			this.ReconciliationPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ReconciliationPeriod, 1000, 60000);
 			this.ThumbnailResizeTimeoutPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailResizeTimeoutPeriod, 200, 5000);
 			this.ThumbnailMinimumSize = new Size(
 				ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailMinimumSize.Width, 16, 7680),

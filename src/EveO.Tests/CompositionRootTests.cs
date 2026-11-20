@@ -48,6 +48,25 @@ namespace EveO.Tests
 		/// o handler estava registrado, mas o grafo nao fechava. Resolver a cadeia
 		/// completa e a unica forma de provar que a aplicacao consegue iniciar.
 		/// </summary>
+		/// <summary>
+		/// O sinal precisa ser singleton: o produtor (hook de janela) e o consumidor
+		/// (ThumbnailManager) têm que compartilhar o mesmo canal. Com lifetime transient,
+		/// cada resolve cria um canal novo e o refresh por evento simplesmente não acontece
+		/// — foi exatamente o bug encontrado no smoke da 2.2b.
+		/// </summary>
+		[Fact]
+		public void ClientChangeSignal_e_WindowEventSource_sao_singletons()
+		{
+			IIocContainer container = new LightInjectContainer();
+			CompositionRoot.Configure(container);
+
+			container.Resolve(typeof(EveOPreview.Refresh.IClientChangeSignal))
+				.Should().BeSameAs(container.Resolve(typeof(EveOPreview.Refresh.IClientChangeSignal)));
+
+			container.Resolve(typeof(EveOPreview.Services.IWindowEventSource))
+				.Should().BeSameAs(container.Resolve(typeof(EveOPreview.Services.IWindowEventSource)));
+		}
+
 		[Fact]
 		public void CompositionRoot_fecha_o_grafo_de_dependencias_do_ThumbnailManager()
 		{

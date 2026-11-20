@@ -121,6 +121,33 @@ O sinal é pequeno frente ao ruído (min 1,30% já toca o alvo). A medição fin
 
 ---
 
+### Implementação 2.2b — validação funcional (20/11)
+
+A/B no Windows com 2 clientes EVE, mesma configuração nos dois builds, medindo a latência de
+criação e de remoção da thumbnail de um aplicativo monitorado:
+
+| Build | Criação | Remoção |
+|---|---|---|
+| v8.2.1 (timer 500 ms) | 620 ms | 1302 ms |
+| 2.2b (event-driven) | 419 ms | 1417 ms |
+
+Paridade funcional: o modelo push não piora a reação. A remoção passa pelo `ProcessSetDiff`, que exige
+N varreduras sem o processo; a janela de settle existe justamente para chegar à confirmação em ~1 s,
+como era com o timer de 500 ms.
+
+**CPU — medição final**: 7 clientes, 4 rodadas alternadas de 120 s, contagem de clientes conferida
+no início e no fim de cada rodada (todas válidas).
+
+| Build | Rodada 1 | Rodada 2 | Média |
+|---|---|---|---|
+| v8.2.1 (timer 500 ms) | 1,39% | 1,51% | **1,45%** |
+| 2.2b (event-driven + reconciliação 5 s) | 0,46% | 0,59% | **0,52%** |
+
+**Redução medida: −64,1%** (gate: −30%).
+
+**Escala**: com 7 clientes o baseline do spike era 1,87%; com 2 clientes, 1,09%. O custo absoluto
+cresce com o número de clientes — é justamente a varredura por cliente que o push elimina.
+
 ## 6. Checklist
 
 - [x] Protótipo com `IAsyncEnumerable` + `Channel<T>` (transporte em `EveO.Core`, medido fora da produção)
@@ -128,4 +155,4 @@ O sinal é pequeno frente ao ruído (min 1,30% já toca o alvo). A medição fin
 - [x] Valores push-based medidos
 - [x] Gate de −30% avaliado (passou)
 - [x] ADR-006 com a decisão
-- [ ] Implementação end-to-end (issue 2.2b) e medição final
+- [x] Implementação end-to-end (issue 2.2b) — **−64,1%** medido com 7 clientes, sem regressão funcional

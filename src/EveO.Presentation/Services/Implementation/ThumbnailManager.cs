@@ -1,5 +1,6 @@
 ﻿using EveOPreview.Configuration;
 using EveOPreview.Mediator.Messages;
+using EveOPreview.Refresh;
 using EveOPreview.Services.Interop;
 using EveOPreview.UI.Hotkeys;
 using EveOPreview.View;
@@ -28,6 +29,17 @@ namespace EveOPreview.Services
 		private const int FORCED_REFRESH_CYCLE_THRESHOLD = 2;
 		private const int DEFAULT_LOCATION_CHANGE_NOTIFICATION_DELAY = 2;
 
+		// Piso entre dois refreshes disparados por evento: trocar de cliente gera uma
+		// rajada de eventos (ativação, foco, nome) que não deve virar uma rajada de refreshes.
+		private const int MIN_EVENT_REFRESH_INTERVAL_MS = 100;
+
+		// O ProcessSetDiff só remove um cliente após N varreduras consecutivas sem ele
+		// (tolerância a "não respondendo"). A 500 ms isso levava 1,5 s; com a reconciliação
+		// de 5 s a thumbnail órfã ficaria até 15 s. Depois de cada evento, esta janela de
+		// varreduras rápidas fecha a confirmação em ~1,5 s sem custo em idle.
+		private const int SETTLE_INTERVAL_MS = 500;
+		private const int SETTLE_TICK_COUNT = 6;
+
 		private const string DEFAULT_CLIENT_TITLE = ThumbnailSizePolicy.DefaultClientTitle;
 
 		// Último fator de zoom aplicado por hot-reload (issue #125)
@@ -41,6 +53,19 @@ namespace EveOPreview.Services
 		private readonly IThumbnailConfiguration _configuration;
 		private readonly DispatcherTimer _thumbnailUpdateTimer;
 		private readonly IThumbnailViewFactory _thumbnailViewFactory;
+
+		// Fase 2.2 (ADR-006): refresh por evento + reconciliacao lenta.
+		private readonly IClientChangeSignal _clientChangeSignal;
+		private readonly IWindowEventSource _windowEventSource;
+		private readonly Dispatcher _dispatcher;
+
+		// Contexto da thread de UI capturado em Start(): no WinForms é o
+		// WindowsFormsSynchronizationContext criado por Application.Run. É por aqui que o
+		// refresh disparado por evento volta para a thread dona das views.
+		private SynchronizationContext _uiContext;
+		private Task _clientChangeConsumer;
+		private long _lastEventDrivenRefreshTickCount;
+		private int _settleTicksRemaining;
 
 		// Confinado à thread de UI (issue #59). O DispatcherTimer, os eventos das views e as
 		// continuações de ativação já rodam nessa thread; por isso não há lock aqui: a
@@ -78,13 +103,19 @@ namespace EveOPreview.Services
 		private List<HotkeyHandler> _spotlightHotkeyHandlers = new List<HotkeyHandler>();
 		#endregion
 
-		public ThumbnailManager(IMediator mediator, IThumbnailConfiguration configuration, IProcessMonitor processMonitor, IWindowManager windowManager, IThumbnailViewFactory factory)
+		public ThumbnailManager(IMediator mediator, IThumbnailConfiguration configuration, IProcessMonitor processMonitor, IWindowManager windowManager, IThumbnailViewFactory factory, IClientChangeSignal clientChangeSignal, IWindowEventSource windowEventSource)
 		{
 			this._mediator = mediator;
 			this._processMonitor = processMonitor;
 			this._windowManager = windowManager;
 			this._configuration = configuration;
 			this._thumbnailViewFactory = factory;
+			this._clientChangeSignal = clientChangeSignal;
+			this._windowEventSource = windowEventSource;
+
+			// O consumo do sinal roda fora da thread de UI; o refresh precisa voltar para
+			// o Dispatcher dono de _thumbnailViews (issue #59).
+			this._dispatcher = Dispatcher.CurrentDispatcher;
 
 			this._activeClient = (IntPtr.Zero, ThumbnailManager.DEFAULT_CLIENT_TITLE);
 
@@ -102,9 +133,13 @@ namespace EveOPreview.Services
 			this._spotlightLayoutDirty = false;
 
 			//  DispatcherTimer setup
+			// No modo event-driven este timer deixa de ser o motor do refresh e passa a ser
+			// a reconciliacao lenta (ADR-006): os eventos disparam o refresh, ele garante
+			// que nada fique permanentemente perdido.
 			this._thumbnailUpdateTimer = new DispatcherTimer();
 			this._thumbnailUpdateTimer.Tick += ThumbnailUpdateTimerTick;
-			this._thumbnailUpdateTimer.Interval = new TimeSpan(0, 0, 0, 0, configuration.ThumbnailRefreshPeriod);
+			this._thumbnailUpdateTimer.Interval = TimeSpan.FromMilliseconds(this.GetRefreshIntervalMilliseconds());
+
 			this._uiThreadId = Environment.CurrentManagedThreadId;
 
 			this._hideThumbnailsDelay = this._configuration.HideThumbnailsDelay;
@@ -688,9 +723,86 @@ namespace EveOPreview.Services
 			// O token antigo não é descartado aqui: operações ainda em voo podem tê-lo capturado.
 			this._lifetimeCancellation = new CancellationTokenSource();
 
+			if (this._configuration.EventDrivenRefresh)
+			{
+				// Contexto da thread de UI: Start() roda nela, então o Post volta para cá.
+				this._uiContext = SynchronizationContext.Current;
+
+				// Hook primeiro, consumidor depois: um evento que chegue antes do consumidor
+				// fica pendente no canal (capacidade 1) e é atendido assim que ele sobe.
+				this._windowEventSource.Start();
+
+				// O canal é SingleReader: um Start repetido sem Stop não pode criar um
+				// segundo consumidor competindo pelo mesmo sinal.
+				if (this._clientChangeConsumer == null)
+				{
+					CancellationToken cancellationToken = this._lifetimeCancellation.Token;
+					this._clientChangeConsumer = Task.Run(() => this.ConsumeClientChangesAsync(cancellationToken));
+				}
+			}
+
 			this._thumbnailUpdateTimer.Start();
 
 			this.RefreshThumbnails();
+		}
+
+		private int GetRefreshIntervalMilliseconds()
+		{
+			return this._configuration.EventDrivenRefresh
+				? this._configuration.ReconciliationPeriod
+				: this._configuration.ThumbnailRefreshPeriod;
+		}
+
+		private async Task ConsumeClientChangesAsync(CancellationToken cancellationToken)
+		{
+			try
+			{
+				await foreach (bool _ in this._clientChangeSignal.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+				{
+					long now = Environment.TickCount64;
+					if (now - Interlocked.Read(ref this._lastEventDrivenRefreshTickCount) < ThumbnailManager.MIN_EVENT_REFRESH_INTERVAL_MS)
+					{
+						continue;
+					}
+
+					Interlocked.Exchange(ref this._lastEventDrivenRefreshTickCount, now);
+					if (this._uiContext != null)
+					{
+						this._uiContext.Post(_ => this.RefreshOnClientChange(), null);
+					}
+					else
+					{
+						this._dispatcher.BeginInvoke(new Action(this.RefreshOnClientChange), DispatcherPriority.Background);
+					}
+				}
+			}
+			catch (OperationCanceledException)
+			{
+				// Encerramento normal (StopAsync).
+			}
+			catch (Exception exception)
+			{
+				// Sem este catch a task morreria em silêncio: o refresh continuaria apenas
+				// pela reconciliação de 5 s, sem nenhum sinal visível de que algo quebrou.
+				AppOperationLog.Record($"consumo de eventos encerrado: {exception.GetType().Name}: {exception.Message}");
+			}
+		}
+
+		private void RefreshOnClientChange()
+		{
+			this.EnsureThumbnailViewsThread(nameof(RefreshOnClientChange));
+			this.UpdateThumbnailsList();
+			this.RefreshThumbnails();
+
+			// Um cliente que fechou precisa de mais varreduras para ser removido
+			// (ProcessSetDiff exige N varreduras consecutivas) e o próximo evento pode
+			// nunca chegar. A janela de settle acelera o timer principal por alguns
+			// ticks e o devolve à reconciliação depois — sem custo em idle.
+			this._settleTicksRemaining = ThumbnailManager.SETTLE_TICK_COUNT;
+			if (this._thumbnailUpdateTimer.IsEnabled)
+			{
+				this._thumbnailUpdateTimer.Interval = TimeSpan.FromMilliseconds(ThumbnailManager.SETTLE_INTERVAL_MS);
+			}
 		}
 
 		public async Task StopAsync(CancellationToken cancellationToken)
@@ -702,10 +814,15 @@ namespace EveOPreview.Services
 			SynchronizationContext uiContext = SynchronizationContext.Current;
 
 			this._thumbnailUpdateTimer.Stop();
+			this._windowEventSource.Stop();
 
 			CancellationTokenSource lifetimeCancellation = this._lifetimeCancellation;
 			this._lifetimeCancellation = null;
 			lifetimeCancellation?.Cancel();
+
+			// Solta a referência para que um Start posterior crie um consumidor novo,
+			// agora com o token novo. O consumidor antigo termina ao observar o cancelamento.
+			this._clientChangeConsumer = null;
 
 			this.CloseAllSpotlightViews();
 
@@ -773,6 +890,16 @@ namespace EveOPreview.Services
 			this.EnsureThumbnailViewsThread(nameof(ThumbnailUpdateTimerTick));
 			this.UpdateThumbnailsList();
 			this.RefreshThumbnails();
+
+			// Fim da janela de settle: o timer volta a ser só reconciliação.
+			if (this._settleTicksRemaining > 0)
+			{
+				this._settleTicksRemaining--;
+				if (this._settleTicksRemaining == 0 && this._configuration.EventDrivenRefresh)
+				{
+					this._thumbnailUpdateTimer.Interval = TimeSpan.FromMilliseconds(this.GetRefreshIntervalMilliseconds());
+				}
+			}
 		}
 
 		private void UpdateThumbnailsList() =>
@@ -1710,7 +1837,9 @@ namespace EveOPreview.Services
 
 		public void RefreshTimerInterval()
 		{
-			this._thumbnailUpdateTimer.Interval = new TimeSpan(0, 0, 0, 0, this._configuration.ThumbnailRefreshPeriod);
+			// No modo event-driven o intervalo é a reconciliação; o valor antigo de
+			// ThumbnailRefreshPeriod volta a valer quando o modo é desligado (rollback).
+			this._thumbnailUpdateTimer.Interval = TimeSpan.FromMilliseconds(this.GetRefreshIntervalMilliseconds());
 		}
 
 		public void RefreshZoomFactor()
