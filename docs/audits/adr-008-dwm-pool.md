@@ -1,70 +1,96 @@
-# ADR-008 — Avaliar Pool de DwmThumbnail no Spike 2.4
+# ADR-008 — Pool de `DwmThumbnail` no spike 2.4
 
-**Date**: 2026-11-14
-**Decision**: Decisão pendente de medição do spike 2.4. O gate define se pool de thumbnails será implementado.
-**Status**: Draft — aguardando resultados do spike 2.4
+**Date**: 2026-11-20
+**Decision**: **Gate não passou.** Manter registro/desregistro por cliente; não implementar pool.
+**Status**: Accepted — spike 2.4 concluído com medição em 7 clientes reais
 
 ---
 
 ## 1. Context
 
-O sistema atual registra e desregistra `DwmThumbnail` a cada ciclo de refresh, o que pode abrir e fechar handles DWM repetidamente. O spike 2.4 visa avaliar a implementação de um pool de `DwmThumbnail` — reutilizar handles registrados em vez de criar novos a cada ciclo, o que poderia reduzir o número total de handles abertos simultaneamente e evitar possíveis limites de handles do Windows/DWM.
+O spike avaliou se um pool de `DwmThumbnail` (`Rent()`/`Return()`, reuso do registro) reduziria
+handles abertos ou latência sob carga.
 
-**Gate do spike 2.4** (ver `docs/roadmap.md` Fase 2, item 2.4):
-- Medir: handles DWM abertos, latency refresh, falhas `DwmRegisterThumbnail` sob carga.
-- **Gate**: Só prossegue se limite real de handles DWM comprovado (#H3) **OU** latency refresh >30ms comprovado.
-- Se gate não passar: descontinuar ideia de pool e documentar decisão neste ADR.
+**Gate**: prosseguir somente se houver **limite real de handles DWM comprovado** *ou* **latência >
+30 ms**.
 
-**Referências**: #H3 (DWM handle limit), `docs/roadmap.md` Fase 2 items 2.4 e 1.7 (ADR-005).
-
----
-
-## 2. Decision (Pending Measurement)
-
-A decisão sobre a implementação de pool de `DwmThumbnail` será definida após a execução do spike 2.4 com as métricas solicitadas. Até então:
-
-- **Manter abordagem atual** de registrar/desregistrar thumbnails a cada ciclo.
-- **Documentar baseline** de handles DWM e latency refresh antes do spike para comparação.
-- **Caso gate seja passado** (limite de handles comprovado OU latency >30ms): revisar este ADR e implementar `ThumbnailPool : IThumbnailPool` com `Rent()`/`Return()`.
-- **Caso gate não seja passado**: descontinuar ideia de pool, manter abordagem atual, documentar que pooling não trouxe benefício mensurado.
+O que o pool otimizaria: `DwmRegisterThumbnail`/`DwmUnregisterThumbnail`. Isso acontece **uma vez por
+ciclo de vida de cliente** (quando ele abre ou fecha), nunca no refresh — no refresh o app chama
+`DwmUpdateThumbnailProperties`.
 
 ---
 
-## 3. Alternatives (A Serem Avaliadas Pós-Spike)
+## 2. Decision
 
-| Alternative | Description | Criteria for Selection |
+**Não implementar pool.** O custo de registro é ~0,012 ms (2.500× abaixo do gate), não há falha nem
+vazamento de handles sob churn, e o caminho otimizado não é o caminho quente.
+
+---
+
+## 3. Evidence and Gates
+
+### Custo de registro (7 janelas de cliente reais)
+
+200 ciclos de `Register` + `Move/Update` + `Unregister`, com as 7 janelas EVE em rodízio:
+
+| Operação | Média | p50 | p95 | Máx |
+|---|---|---|---|---|
+| `DwmRegisterThumbnail` (+ wrappers) | **0,012 ms** | 0,000 ms | 0,002 ms | 2,341 ms |
+| `DwmUpdateThumbnailProperties` (o que roda no refresh) | **0,001 ms** | — | 0,003 ms | 0,119 ms |
+
+- **falhas de registro: 0** em 200 ciclos;
+- **GDI: 15 → 15 · USER: 20 → 20** (nenhum handle vazado).
+
+O maior valor individual (2,34 ms) é o primeiro registro — custo de inicialização do DWM, não do
+caminho repetido.
+
+### Churn no aplicativo real
+
+12 ciclos de abrir/fechar um cliente monitorado (Notepad, mesma config):
+
+| Métrica | Início | Fim |
 |---|---|---|
-| **Thumbnail Pool** | Implementar `ThumbnailPool : IThumbnailPool` com métodos `Rent()`/`Return()` para reutilizar handles `DwmRegisterThumbnail` em vez de criar novos a cada ciclo. | Limite real de handles DWM comprovado (#H3) OU latency refresh >30ms comprovado no spike 2.4. Redução de handles abertos simultâneos. |
-| **Manter abordagem atual (register/unregister)** | Manter o pattern existente de registrar thumbnail a cada ciclo de refresh. | Gate não passado: limite de handles não é gargalo OU latency ≤30ms. Menor risco, código mais simples. |
-| **Hybrid: pool condicional** | Pool apenas em cenários de alta carga (muitos clientes), register/unregister otherwise. | Benefício mensurado em carga alta; adiciona complexidade condicional sem ganho global. |
+| GDI | 83 | **83** |
+| USER | 81 | **84** |
+| Working set | 99 MB | 114 MB |
+
+Sem crash log em nenhum ciclo. Handles estáveis: o par register/unregister do app já está correto.
+
+### Gate
+
+- **Latência > 30 ms?** Não — 0,012 ms, isto é, ~2.500× abaixo do limite.
+- **Limite real de handles?** Não — nenhum crescimento em 200 ciclos nem em 12 ciclos do app; com 7
+  clientes o processo usa 83 GDI / 84 USER, ordens de grandeza abaixo do teto do Windows.
 
 ---
 
-## 4. Consequences (Dependendo do Resultado do Spike)
+## 4. Consequences
 
-| Scenario | Consequence |
-|---|---|
-| **Gate passado — Handle limit comprovado ou latency >30ms** | - Implementar `ThumbnailPool` com `Rent()`/`Return()` pattern.<br>- Atualizar `ThumbnailManager` para usar pool em vez de register/desregister direto.<br>- Gerenciar ciclo de vida do pool (init no startup, cleanup no stop).<br>- Atualizar métricas em `docs/roadmap.md` (Fase 2 Target: DWM handles controlled, refresh latency <30ms).<br>- Atualizar ADR-005 (Sem DWM pooling) se pool for adotado. |
-| **Gate não passado — Nem handle limit nem latency >30ms** | - Manter abordagem atual de register/unregister.<br>- Documentar que pooling não trouxe benefício mensurável.<br>- Considerar outras otimizações (ex: límites de pool, retry logic no registro).<br>- Manter ADR-008 vigente como "gate não passado" e ADR-005 vigente (Sem DWM pooling). |
+**Mantido:** um `DwmThumbnail` por cliente, registrado na criação da view e desregistrado na remoção.
+
+**Não fazer:** `IThumbnailPool` com `Rent()`/`Return()`. Um pool introduziria:
+
+- estado compartilhado e risco de devolver um handle ainda em uso (falha visível como thumbnail
+  "congelada" ou preta);
+- complexidade de ciclo de vida sem ganho mensurável.
+
+**Observação fora do escopo (não é pooling):** o working set subiu de 99 MB para 114 MB durante os 12
+ciclos de churn. Handles estão estáveis, então isso é heap gerenciado (GC ainda não coletou), não
+vazamento. Se crescer sem teto em uso real, vira uma issue própria de memória — mas não há indício de
+que um pool ajude nisso.
+
+### Ressalva
+
+Medição feita no Windows com 7 clientes reais. Como no ADR-007, a conclusão não depende do backend
+gráfico: o gate falha por três ordens de grandeza, não por margem apertada.
 
 ---
 
-## 5. Evidence and Gates
+## 5. Checklist
 
-- **Baseline measurement**: Registrar número de handles DWM abertos, latency refresh médio, e falhas `DwmRegisterThumbnail` sob carga de 7 clientes antes do spike.
-- **Pool prototype**: Implementar `ThumbnailPool : IThumbnailPool` com `Rent()`/`Return()` e medir comportamentos comparados ao pattern atual.
-- **Gate thresholds**:
-  - #H3 (DWM handle limit) comprovado: número máximo de handles abertos simultâneos identificado como gargalo.
-  - latency refresh >30ms comprovado: latência média de refresh excede 30ms no cenário de 7 clientes.
-- **Spike duration**: 2 dias (ver `docs/roadmap.md` Fase 2, item 2.4).
-- **Output**: Protótipo funcionando + medição registrada + decisão documentada neste ADR.
-
----
-
-### Checklist para futuras mudanças
-
-- [ ] Executar spike 2.4 com medição de handles DWM baseline e latency refresh.
-- [ ] Verificar se #H3 (handle limit) é comprovado OU latency >30ms é comprovado.
-- [ ] Se sim, implementar ThumbnailPool e revisar ADR-005.
-- [ ] Se não, manter abordagem atual e fechar este ADR como "gate não passado".
-- [ ] Atualizar `docs/roadmap.md` targets conforme resultado.
+- [x] Custo de `Register`/`Unregister` medido com janelas reais
+- [x] Falhas de registro sob carga contadas (0 em 200 ciclos)
+- [x] Vazamento de handles verificado (200 ciclos + 12 ciclos no app)
+- [x] Gate de 30 ms / limite de handles avaliado — **não passou**
+- [x] ADR-008 com a decisão
+- [x] Sem mudança de código (decisão: manter)
