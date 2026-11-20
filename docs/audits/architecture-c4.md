@@ -1,6 +1,8 @@
 # Documentação de Arquitetura C4
 
-*Atualizada em 2026-11-20 — reflete a separação em camadas da Fase 2.1 e o refresh event-driven da Fase 2.2.*
+*Atualizada em 2026-11-20 — Fase 2.1 (camadas), Fase 2.2 (refresh event-driven) e Fase 3 (Forgejo como fonte, GitHub como espelho de release).*
+
+> Ver `docs/audits/spike-forgejo.md` para as medições e o plano da Fase 3.
 
 Para a visão de conjunto e as regras de dependência, ver `docs/architecture/README.md`.
 Decisões: `docs/audits/adr-00*.md`.
@@ -61,9 +63,18 @@ flowchart TB
         T2["EveO.Tests"]
     end
 
-    subgraph CI["CI (self-hosted)"]
-        LINUX["Linux: build + Core tests + Wine"]
-        WIN["Windows: 74 testes (sem desktop)"]
+    subgraph CI["CI — Forgejo (fonte) e GitHub (releases)"]
+        FJ["Forgejo<br/>fonte da verdade"]
+        RUN["Runner self-hosted<br/>host mode (sem Docker)"]
+        WF[".forgejo/workflows/ci.yml"]
+        AM["Auto-merge<br/>timer de 5 min"]
+        GH["GitHub<br/>espelho de main + tags"]
+
+        WF --> RUN
+        FJ --> RUN
+        RUN --> AM
+        AM -->|merge + fechamento da issue| FJ
+        FJ -->|push main + tags| GH
     end
 
     EXE --> PRES
@@ -76,8 +87,8 @@ flowchart TB
     T2 --> INFRA
     T2 --> CORE
 
-    LINUX -.-> T1
-    WIN -.-> T2
+    RUN -.-> T1
+    RUN -.-> T2
 ```
 
 ---
