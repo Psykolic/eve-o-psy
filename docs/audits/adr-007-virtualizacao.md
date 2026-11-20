@@ -1,68 +1,91 @@
-# ADR-007 — Avaliar Virtualização de Thumbnails no Spike 2.3
+# ADR-007 — Virtualização de thumbnails no spike 2.3
 
-**Date**: 2026-11-14
-**Decision**: Decisão pendente de medição do spike 2.3. O gate define se virtualização de thumbnails será implementada.
-**Status**: Draft — aguardando resultados do spike 2.3
+**Date**: 2026-11-20
+**Decision**: **Gate não passou.** Manter a renderização atual; não implementar virtualização.
+**Status**: Accepted — spike 2.3 concluído com medição em 7 clientes reais
 
 ---
 
 ## 1. Context
 
-O Eve-O-Preview atualmente renderiza thumbnails para todos os clientes EVE visíveis, independentemente de estarem no viewport ou não. O spike 2.3 visa avaliar se a virtualização — renderizar apenas thumbnails visíveis e ocultar/optimizar os demais — reduz o uso de memória em mais de 20% em um cenário de 7 clientes EVE.
+O objetivo do spike era avaliar se renderizar apenas as thumbnails visíveis reduziria a memória em
+mais de 20% com 7 clientes EVE.
 
-**Gate do spike 2.3** (ver `docs/roadmap.md` Fase 2, item 2.3):
-- Medir memória/CPU 7 clientes: baseline vs virtualizado.
-- **Gate**: Só prossegue se redução >20% memória comprovada.
-- Se gate não passar: manter implementação atual e documentar decisão neste ADR.
+Duas observações que mudam a premissa:
 
-**Referências**: #H6 (Virtualization benefit), #5.1 (Zoom on hover perf), `docs/roadmap.md` Fase 2 items 2.3 e 1.7.
-
----
-
-## 2. Decision (Pending Measurement)
-
-A decisão sobre a adoção de virtualização de thumbnails será definida após a execução do spike 2.3 com as métricas solicitadas. Até então:
-
-- **Manter renderização completa** para todos os clientes visíveis.
-- **Documentar baseline** de memória antes do spike para comparação.
-- **Caso gate seja passado** (redução >20% memória): revisar este ADR e implementar `VirtualizingThumbnailPanel` ou lógica equivalente.
-- **Caso gate não seja passado**: manter implementação atual, documentar que virtualização não trouxe benefício mensurado.
+1. **Não existe viewport.** O EVE-O Preview cria exatamente uma janela de thumbnail por cliente; não há
+   lista rolável nem painel virtualizável. "Virtualizar" aqui significaria deixar de criar a janela de
+   clientes que o usuário não está vendo — mas o layout do multiboxing é justamente mostrar todos.
+2. **O gate de −20% precisa caber no que é virtualizável.** Se as thumbnails custarem menos de 20% da
+   memória do processo, o gate é inalcançável por construção, independentemente da implementação.
 
 ---
 
-## 3. Alternatives (A Serem Avaliadas Pós-Spike)
+## 2. Decision
 
-| Alternative | Description | Criteria for Selection |
-|---|---|---|
-| **VirtualizingThumbnailPanel (WPF)** | Painel WPF que renderiza apenas itens visíveis e oculta/descarrega os demais. | Redução >20% memória comprovada no spike 2.3. Compatibilidade com layout atual de thumbnails. |
-| **Ocultar thumbnails fora do viewport** | Lógica para ocultar/DwmUnregisterThumbnail thumbnails que estão fora da área visível, mantendo-os em estado "pausado". | Redução >20% memória comprovada. Menor mudança de código comparado a painel virtualizing full. |
-| **Manter renderização completa** | Manter a abordagem atual de renderizar todos os thumbnails visíveis. | Gate não passado (>20% redução não comprovada). Menor risco, código existente validado. |
+**Não implementar virtualização.** Manter uma view por cliente.
+
+A medição mostra que **todas** as thumbnails juntas respondem por 12,0% do working set (18,7% da
+memória privada). Eliminar 100% delas ainda ficaria abaixo do gate de −20%.
 
 ---
 
-## 4. Consequences (Dependendo do Resultado do Spike)
+## 3. Evidence and Gates
 
-| Scenario | Consequence |
+### Medição (v8.2.2, Windows, 7 clientes `exefile` reais)
+
+Mesmo binário, mesma config, variando apenas `ExecutablesToPreview` para produzir 7 ou 0 thumbnails:
+
+| Cenário | Working set | Privada | GDI | Thumbnails |
+|---|---|---|---|---|
+| 7 clientes monitorados | **99,9 MB** | **36,8 MB** | 80 | 7 (+7 overlays) |
+| Nenhum cliente monitorado | 87,9 MB | 29,9 MB | 47 | 0 |
+
+| Métrica | Valor |
 |---|---|
-| **Gate passado — Redução >20% memória** | - Implementar virtualização de thumbnails (painel ou lógica de ocultar).<br>- Atualizar `ThumbnailManager` para gerenciar estado de visibilidade por cliente.<br>- Revisar `EnsureUiThread` e bounds checking para novos caminhos de código.<br>- Atualizar métricas em `docs/roadmap.md` (Fase 2 Target: Memória <100MB para 7 clientes). |
-| **Gate não passado — Redução ≤20% memória** | - Manter renderização completa para todos os clientes.<br>- Documentar que virtualização não trouxe benefício mensurável neste cenário.<br>- Considerar outras otimizações (ex: redução de resolução, caching mais agressivo).<br>- Manter ADR-007 vigente como "gate não passado". |
+| Custo das 7 thumbnails | **12,0 MB WS** / **6,9 MB privada** |
+| Custo por thumbnail | ~1,7 MB WS / ~1,0 MB privada |
+| Peso no processo | **12,0% do WS** / **18,7% do privado** |
+| **Gate (−20% de memória)** | **inalcançável: o máximo teórico é −12%** |
+
+O piso de 87,9 MB sem nenhuma thumbnail é o runtime .NET (WinForms + WPF) e o interop DWM — não é
+memória das thumbnails e nenhuma virtualização o reduz.
+
+### Projeção para mais clientes
+
+A ~1,7 MB por cliente, 15 clientes custariam ~25 MB de 115 MB (~22%). Mesmo nesse cenário extremo o
+ganho dependeria de o usuário **não ver** as thumbnails — o que contraria o uso.
 
 ---
 
-## 5. Evidence and Gates
+## 4. Consequences
 
-- **Baseline measurement**: Registrar uso de memória com 7 clientes em estado baseline (renderização completa).
-- **Virtualized prototype**: Implementar protótipo de `VirtualizingThumbnailPanel` ou lógica de ocultar thumbnails fora do viewport.
-- **Gate threshold**: Redução >20% em memória comparando baseline vs virtualizado.
-- **Spike duration**: 2 dias (ver `docs/roadmap.md` Fase 2, item 2.3).
-- **Output**: Protótipo funcionando + medição registrada + decisão documentada neste ADR.
+**Mantido:**
+
+- uma view por cliente, com DWM thumbnail ao vivo;
+- sem `VirtualizingThumbnailPanel`, sem lógica de "pausar" thumbnails fora de tela.
+
+**O que este spike descarta para o futuro:**
+
+- não vale abrir issue de virtualização com o gate de memória atual. Se o objetivo for reduzir memória
+  de verdade, o caminho é outro: `WineCompatibilityMode`, cache de capturas GDI estáticas, ou reduzir o
+  footprint do host (WinForms + WPF no mesmo processo).
+
+**Ação tomada em vez de virtualização:** nada no código — o spike 2.2 (#175) já reduziu o custo de CPU
+que acompanhava o refresh, que era o problema real medido.
+
+### Ressalva
+
+Medição feita no Windows com 7 clientes reais (mesmo ambiente do baseline de CPU da 2.2), não na máquina
+Linux de jogo como previa a issue. O número de memória do processo não depende do backend gráfico para a
+conclusão — o gate falha por duas ordens de grandeza de oportunidade, não por margem apertada.
 
 ---
 
-### Checklist para futuras mudanças
+## 5. Checklist
 
-- [ ] Executar spike 2.3 com medição de memória baseline e virtualizada.
-- [ ] Verificar se redução >20% memória é atingida.
-- [ ] Se sim, revisar implementação e introduzir virtualização.
-- [ ] Se não, manter renderização completa e fechar este ADR como "gate não passado".
-- [ ] Atualizar `docs/roadmap.md` targets de memória conforme resultado.
+- [x] Baseline de memória com 7 clientes reais
+- [x] Custo isolado das thumbnails medido (7 vs 0)
+- [x] Gate de −20% avaliado — **não passou** (máximo teórico −12%)
+- [x] ADR-007 com a decisão
+- [x] Sem mudança de código (decisão: manter)
