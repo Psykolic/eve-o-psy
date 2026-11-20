@@ -102,3 +102,31 @@ Hoje `EveO.Tests` enxerga internals de `Eve-O-Preview`. Após a separação, rep
 - Extração do `ThumbnailOrchestrator` (2.1b).
 - Troca de `DispatcherTimer` por streams (2.2).
 - Alterações de comportamento de captura/DWM.
+
+## 9. Lições aprendidas (execução)
+
+### O registro por convenção varre o assembly do tipo informado
+
+`container.Register<TService>()` varre `typeof(TService).Assembly` — **não** o assembly de quem
+chama. Duas regressões nasceram disso:
+
+| Onda | Contrato | Implementação | Assembly varrido |
+|---|---|---|---|
+| 2 | `IWindowManager`, `IProcessMonitor` (Core) | Infrastructure | Core (sem a implementação) |
+| 4b | handlers do MediatR | Presentation | exe (só o `Program`) |
+
+As duas passaram pela CI e só apareceram no **smoke manual com clientes reais**: nenhum teste
+exercitava a raiz de composição. O app abria, ia para o primeiro `StartService` e morria.
+
+Correção em #171: `CompositionRoot` no `EveO.Presentation`, registros cross-assembly explícitos e
+`CompositionRootTests` validando o grafo — verificado por mutação (revertendo o registro errado, o
+teste falha).
+
+### Checklist de validação — revisado
+
+- `dotnet build` + `EveO.Core.Tests` verdes **não** provam que o app inicia.
+- A perna Windows da CI roda sem os testes de desktop (sessão de serviço), então ela também não
+  substitui o smoke manual.
+- O smoke deve ser feito com o **artefato empacotado**, não com `dotnet run`: é ali que aparecem
+  diferenças de versão (`-p:AssemblyVersion`), de empacotamento e de caminho de DLL.
+- Smoke manual no Windows com clientes reais é obrigatório antes de release de mudança estrutural.
