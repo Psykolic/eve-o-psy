@@ -1,163 +1,168 @@
 # Documentação de Arquitetura C4
 
-*Baseada no repositório Eve-O-Preview — gerada em 2026-11-14*
+*Atualizada em 2026-11-20 — reflete a separação em camadas da Fase 2.1 e o refresh event-driven da Fase 2.2.*
+
+Para a visão de conjunto e as regras de dependência, ver `docs/architecture/README.md`.
+Decisões: `docs/audits/adr-00*.md`.
 
 ---
 
 ## Visão geral
 
-Este documento contém os diagramas C4 (Context, Container, Component e Code) que descrevem a arquitetura atual do sistema Eve-O-Preview. Os diagramas refletem as quatro camadas principais: `Eve-O-Preview` (aplicação de UI), `EveO.Core` (domain/abstrações), `EveO.Tests` (testes de integração) e `EveO.Core.Tests` (testes unitários).
+O sistema tem **quatro assemblies de produção** e dois de teste:
 
-**Referências cruzadas**: `docs/roadmap.md` (Fase 2, item 2.7) e `docs/audits/architecture-plan.md` (plano detalhado de deliverables 2.1–2.7).
+| Assembly | Papel | Depende de |
+|---|---|---|
+| `EveO.Core` | domínio, configuração, mensagens do Mediator, abstrações | nada de Windows |
+| `EveO.Infrastructure` | interop Win32/DWM, processos, janelas, captura GDI | Core |
+| `EveO.Presentation` | WinForms/WPF: views, presenters, handlers, `ThumbnailManager`, raiz de composição | Core, Infrastructure |
+| `EVE-O-Preview` | `Program`: mutex, exceções, ciclo de vida | Presentation |
+| `EveO.Core.Tests` | testes sem Windows | Core |
+| `EveO.Tests` | testes com Windows (GDI, integração) | Core, Infrastructure, Presentation |
+
+**Regra de ouro**: `EveO.Core` não referencia `System.Windows.Forms`, `System.Windows.Threading` nem
+P/Invoke. Se algum tipo do Core puxar Windows, a camada está errada.
 
 ---
 
-### 1. Contexto (Level 1)
-
-Diagrama de nível Contextual mostrando o sistema Eve-O-Preview e seus atores externos.
+## 1. Contexto (Level 1)
 
 ```mermaid
-contextDiagram
-    title Contexto - Eve-O-Preview
+flowchart TB
+    U["Usuário (multiboxing)"] -->|hotkeys, config, tray| APP
+    subgraph APP["EVE-O Preview"]
+        direction TB
+        UI["Thumbnails, spotlights e overlay"]
+    end
+    APP -->|DWM thumbnail e Win32| EVE["Clientes EVE Online (exefile.exe)"]
+    APP -->|EVE-O-Preview.json| FS[("Sistema de arquivos")]
+    APP -->|ciclo por hotkey| EVE
+```
 
-    actor Usuário as User
-    actor "Outros Aplicativos" as OtherApps
+O EVE-O não injeta nada no jogo: ele registra thumbnails de janelas alheias via DWM e reage a eventos
+do sistema. Se o cliente rodar elevado e o EVE-O não, o Windows bloqueia a entrega de eventos (UIPI) —
+por isso a reconciliação periódica existe.
 
-    package "Eve-O-Preview" {
-        description "Aplicação de gerenciamento de thumbnails para clientes EVE Online"
-        url "https://example.com/eve-o-preview"
+---
 
-        interface "Hotkey Input" as HK
-        interface "JSON Configuration" as Config
-        interface "System Tray" as Tray
+## 2. Container (Level 2)
 
-        other "EVE Online Client" as EVE_Client
-    }
+```mermaid
+flowchart TB
+    subgraph PROD["Produção"]
+        EXE["EVE-O-Preview<br/>Program + mutex + exceções"]
+        PRES["EveO.Presentation<br/>View, Presenters, Handlers,<br/>ThumbnailManager, CompositionRoot"]
+        INFRA["EveO.Infrastructure<br/>WindowManager, DwmThumbnail,<br/>ProcessMonitor, WindowEventSource,<br/>StaticThumbnailGdi"]
+        CORE["EveO.Core<br/>configuração, mensagens,<br/>abstrações, IClientChangeSignal"]
+    end
 
-    User --> HK
-    User --> Config
-    User --> Tray
-    HK --> Eve-O-Preview
-    Config --> Eve-O-Preview
-    Tray --> Eve-O-Preview
-    Eve_O_Preview --> EVE_Client
+    subgraph TESTS["Testes"]
+        T1["EveO.Core.Tests"]
+        T2["EveO.Tests"]
+    end
 
-    note right of User: Controla ciclo de clientes, hotkeys, configuração
-    note right of OtherApps: Integração com ferramentas externas, overlays
-    note right of EVE_Client: Cliente do jogo EVE Online que fornece dados de janela
+    subgraph CI["CI (self-hosted)"]
+        LINUX["Linux: build + Core tests + Wine"]
+        WIN["Windows: 74 testes (sem desktop)"]
+    end
+
+    EXE --> PRES
+    PRES --> INFRA
+    PRES --> CORE
+    INFRA --> CORE
+
+    T1 --> CORE
+    T2 --> PRES
+    T2 --> INFRA
+    T2 --> CORE
+
+    LINUX -.-> T1
+    WIN -.-> T2
 ```
 
 ---
 
-### 2. Container (Level 2)
+## 3. Component (Level 3)
 
-Diagrama de nível Container mostrando os principais contêineres de software e suas relações.
+### `EveO.Presentation`
 
 ```mermaid
-containerDiagram
-    title Container - Eve-O-Preview
+flowchart TB
+    CR["CompositionRoot<br/>(raiz de composição / DI)"]
+    TM["ThumbnailManager<br/>dono das views e do ciclo de refresh"]
+    PRESENTER["MainFormPresenter"]
+    HANDLERS["Mediator/Handlers<br/>Services, Configuration, Thumbnails"]
+    VIEWS["View (MainForm, ThumbnailView,<br/>ThumbnailOverlay, Spotlight)"]
+    APP["ApplicationBase<br/>ApplicationController, Presenter,<br/>LightInjectContainer, ExceptionHandler"]
 
-    user Usuário
-    system "Eve-O-Preview (UI)" as Eve_Preview_UI
-        # Tetradro de tecnologias: .NET 8, WPF, WF, DWM, GDI+
+    CR --> TM
+    CR --> PRESENTER
+    CR --> HANDLERS
+    CR --> VIEWS
+    TM --> VIEWS
+    PRESENTER --> VIEWS
+    HANDLERS --> TM
+    APP -.-> CR
+```
 
-    system "EveO.Core (Domain/Abstrações)" as Eve_Core
-        # netstandard2.1 / net8.0, zero dependências Windows-only
-        package "Projetos:" {
-            component "Core domain" as Core_Domain
-            component "Abstrações (IThumbnailProvider, IWindowManager)" as Core_Abstractions
-            component "Configurações" as Core_Config
-        }
+### `EveO.Infrastructure`
 
-    system "EveO.Tests (Testes de Integração)" as Eve_Tests
-        # xUnit, Moq, testes de 7-client cycle, regressão
+```mermaid
+flowchart TB
+    WM["WindowManager<br/>ativação, minimização, títulos"]
+    DWM["DwmThumbnail<br/>Register / Update / Unregister"]
+    PM["ProcessMonitor<br/>varredura e diff de processos"]
+    WES["WindowEventSource<br/>SetWinEventHook CREATE..NAMECHANGE"]
+    GDI["StaticThumbnailGdi<br/>captura estática"]
 
-    system "EveO.Core.Tests (Testes Unitários)" as Eve_Core_Tests
-        # xUnit, FluentAssertion, benchmarks mockados
-
-    OtherApps --> Eve_Preview_UI
-    EVE_Client --> Eve_Preview_UI
-
-    Eve_Preview_UI --> Eve_Core
-    Eve_Core --> Eve_Tests
-    Eve_Core --> Eve_Core_Tests
-
-    note right of Eve_Preview_UI: Camada de UI (WPF + Win32/DWM), hotkeys, thumbnails
-    note right of Eve_Core: Interfaces e lógica domain; build em Linux confirmado
-    note right of Eve_Tests: Integração Win32, cycle de 6+1 clientes
-    note right of Eve_Core_Tests: Testes unitários de calculadoras, cálculos de região
+    WES -->|Publish| SIGNAL["IClientChangeSignal<br/>(Core)"]
+    WM -.->|Win32| OS["Windows"]
+    DWM -.->|DWM| OS
+    GDI -.->|GDI| OS
 ```
 
 ---
 
-### 3. Component (Level 3)
+## 4. Code (Level 4) — o ciclo de refresh
 
-Diagrama de nível Component mostrando os componentes principais dentro de cada projeto.
+Este é o fluxo que a Fase 2.2 mudou (ADR-006). Antes: um `DispatcherTimer` de 500 ms varria processos a
+2 Hz. Agora: eventos disparam o refresh e o timer só reconcilia.
 
 ```mermaid
-componentDiagram
-    title Component - Eve-O-Preview e Dependências
+sequenceDiagram
+    participant OS as Windows
+    participant WES as WindowEventSource
+    participant SIG as ClientChangeSignal
+    participant CONS as Consumidor (ThumbnailManager)
+    participant UI as Thread de UI
+    participant PM as ProcessMonitor
+    participant DWM as DwmThumbnail
 
-    class Eve_Preview_UI "Eve-O-Preview (UI)\n- ThumbnailManager\n- WindowManager\n- ProcessMonitor\n- Hotkey handlers\n- DispatcherTimer\n- StaticThumbnailView" {
-        <<application>>
-    }
-
-    class Eve_Core "EveO.Core:\n- IThumbnailProvider\n- IWindowManager\n- IProcessMonitor\n- IThumbnailConfiguration\n- ThumbnailOrchestrator\n- SpotlightRegionCalculator" {
-        <<interface>>
-    }
-
-    class Eve_Tests "EveO.Tests:\n- ThumbnailManagerUiThreadConfinementTests\n- ThumbnailManagerActivationTests\n- ThumbnailManagerStopAsyncTests\n- GdiStressTests\n- StabilityTests" {
-        <<test>>
-    }
-
-    class Eve_Core_Tests "EveO.Core.Tests:\n- SpotlightRegionCalculatorTests\n- SpotlightResizeCalculatorTests" {
-        <<test>>
-    }
-
-    Eve_Preview_UI --> Eve_Core : uses abstractions
-    Eve_Preview_UI --> Eve_Tests : references
-    Eve_Core --> Eve_Core_Tests : references
-
-    note for Eve_Preview_UI "UI thread confinement\nEnsureUiThread invariant" {
-        Thread safety via UI confinement
-    }
-    note for Eve_Core "netstandard2.1\nLinux build verified" {
-        No Windows-only deps
-    }
+    OS->>WES: EVENT_OBJECT_CREATE/DESTROY/SHOW/HIDE/NAMECHANGE
+    WES->>WES: filtra toolwindow, owner e processo monitorado
+    WES->>SIG: Publish()  (canal de 1 item, DropOldest)
+    SIG-->>CONS: ReadAllAsync
+    CONS->>CONS: piso de 100 ms entre refreshes
+    CONS->>UI: SynchronizationContext.Post
+    UI->>PM: GetUpdatedProcesses()
+    UI->>DWM: Update / Register / Unregister
+    Note over UI: após o evento,<br/>janela de settle acelera o timer<br/>para 500 ms por 3 s
+    Note over UI: reconciliação a cada 5 s<br/>cobre eventos perdidos (UIPI)
 ```
+
+Consequências medidas (7 clientes): CPU idle `1,45% → 0,52%`; criação de thumbnail `620 → 419 ms`.
 
 ---
 
-### 4. Code (Level 4)
+## 5. ADRs
 
-Diagrama de nível Code destacando classes e interfaces chave com suas responsabilidades.
-
-```mermaid
-classDiagram
-    title Code - Classes e Interfaces Principais
-
-    class IThumbnailProvider "Interface:\n- RegisterThumbnail()\n- UpdateThumbnail()\n- UnregisterThumbnail()\n- Dispose()"
-    class DwmThumbnailProvider "Implementação Windows:\n- DwmRegisterThumbnail\n- DwmUpdateThumbnail\n- GDI fallback\n- SafeHandle management"
-    class ThumbnailManager "Classe principal:\n- _thumbnailViews (Dictionary<IntPtr, IThumbnailView>)\n- EnsureUiThread invariant\n- ThumbnailUpdateTimerTick\n- RefreshThumbnails\n- CycleNextClient\n- MinimizeAllClients" {
-        + Start() + StopAsync() + EnsureThumbnailViewsThread()
-    }
-    class WindowManager "Gerencia janelas:\n- GetForegroundWindowHandle\n- IsCompositionEnabled\n- TurnOffAnimation\n- RestoreAnimation\n- ActivateWindow" {
-        + GetStaticThumbnail()
-    }
-    class IWindowManager "Interface:\n- RegisterThumbnail\n- UpdateThumbnail\n- UnregisterThumbnail\n- GetStaticThumbnail" }
-    class ProcessMonitor "Monitor de processos:\n- ProcessChanged event\n- Client lifecycle tracking" }
-    class IProcessMonitor "Interface:\n- StartMonitoring()\n- StopMonitoring()\n- Events" }
-
-    IThumbnailProvider --> DwmThumbnailProvider : implements
-    IWindowManager --> WindowManager : implements
-    IProcessMonitor --> ProcessMonitor : implements
-
-    ThumbnailManager ..> IThumbnailProvider : uses
-    WindowManager ..> IWindowManager : uses
-    ThumbnailManager ..> ProcessMonitor : uses
-    ThumbnailManager ..> IProcessMonitor : uses
-
-    note for IThumbnailProvider "Abstração para pooling (ADR-008)\nSem Rx.NET na Fase 1 (ADR-004)" }
-    note for IWindowManager "Sem DispatcherTimer direto\nUsar event-driven after spike (ADR-006)" }
-    note for ThumbnailManager "UI thread confinement\nFail-fast via EnsureUiThread" }
-    note for DwmThumbnailProvider "SafeHandle + GDI fallback\nSem DWM pooling na Fase 1 (ADR-005)" }
+| ADR | Decisão | Status |
+|---|---|---|
+| ADR-001 | MVP vs MediatR coexistindo | aceito |
+| ADR-002 | Abstração DWM via `IThumbnailProvider` | aceito |
+| ADR-003 | JSON config (não JsonSchema) | aceito |
+| ADR-004 | Sem Rx.NET na Fase 1 | aceito |
+| ADR-005 | Sem DWM pooling na Fase 1 | aceito |
+| ADR-006 | **Refresh event-driven** (`Channel<T>` + reconciliação 5 s) | aceito, implementado (#175) |
+| ADR-007 | Virtualização de thumbnails | **rejeitada** (gate −20% inalcançável: máx. −12%) |
+| ADR-008 | Pool de `DwmThumbnail` | **rejeitada** (registro 0,012 ms vs limite de 30 ms) |
