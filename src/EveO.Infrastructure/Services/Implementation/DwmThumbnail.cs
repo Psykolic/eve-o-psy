@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using EveOPreview.Services.Interop;
@@ -9,14 +9,14 @@ namespace EveOPreview.Services.Implementation
 	{
 		#region Private fields
 		private readonly IWindowManager _windowManager;
-		private IntPtr _handle;
+		private SafeDwmThumbnailHandle _handle;
 		private DWM_THUMBNAIL_PROPERTIES _properties;
 		#endregion
 
 		public DwmThumbnail(IWindowManager windowManager)
 		{
 			this._windowManager = windowManager;
-			this._handle = IntPtr.Zero;
+			this._handle = new SafeDwmThumbnailHandle();
 		}
 
 		public void Register(IntPtr destination, IntPtr source)
@@ -35,9 +35,14 @@ namespace EveOPreview.Services.Implementation
 				return;
 			}
 
+			// Registro novo sempre substitui o anterior: descartar aqui evita acumular
+			// duas inscrições no DWM quando a view é reciclada.
+			this.ReplaceHandle(new SafeDwmThumbnailHandle());
+
 			try
 			{
-				this._handle = DwmNativeMethods.DwmRegisterThumbnail(destination, source);
+				this.ReplaceHandle(new SafeDwmThumbnailHandle(
+					DwmNativeMethods.DwmRegisterThumbnail(destination, source)));
 			}
 			catch (ArgumentException)
 			{
@@ -45,34 +50,17 @@ namespace EveOPreview.Services.Implementation
 				// Can happen on a really slow CPU's that the window is still being
 				// listed in the process list yet it already cannot be used as
 				// a thumbnail source
-				this._handle = IntPtr.Zero;
 			}
 			catch (COMException)
 			{
 				// This exception is raised if DWM is suddenly not available
 				// (f.e. when switching between Windows user accounts)
-				this._handle = IntPtr.Zero;
 			}
 		}
 
 		public void Unregister()
 		{
-			if ((!this._windowManager.IsCompositionEnabled) || (this._handle == IntPtr.Zero))
-			{
-				return;
-			}
-
-			try
-			{
-				DwmNativeMethods.DwmUnregisterThumbnail(this._handle);
-			}
-			catch (ArgumentException)
-			{
-			}
-			catch (COMException)
-			{
-				// This exception is raised when DWM is not available for some reason
-			}
+			this.ReplaceHandle(new SafeDwmThumbnailHandle());
 		}
 
 		public void Move(int left, int top, int right, int bottom)
@@ -93,14 +81,14 @@ namespace EveOPreview.Services.Implementation
 
 		public void Update()
 		{
-			if ((!this._windowManager.IsCompositionEnabled) || (this._handle == IntPtr.Zero))
+			if ((!this._windowManager.IsCompositionEnabled) || this._handle.IsInvalid)
 			{
 				return;
 			}
 
 			try
 			{
-				DwmNativeMethods.DwmUpdateThumbnailProperties(this._handle, this._properties);
+				DwmNativeMethods.DwmUpdateThumbnailProperties(this._handle.DangerousGetHandle(), this._properties);
 			}
 			catch (ArgumentException)
 			{
@@ -110,6 +98,18 @@ namespace EveOPreview.Services.Implementation
 			{
 				// This exception is raised when DWM is not available for some reason
 			}
+		}
+
+		/// <summary>Devolve o registro ao DWM. Idempotente.</summary>
+		public void Dispose() => this.Unregister();
+
+		private void ReplaceHandle(SafeDwmThumbnailHandle handle)
+		{
+			SafeDwmThumbnailHandle anterior = this._handle;
+			this._handle = handle;
+
+			// Só descarta depois de trocar: se o registro novo falhar, o antigo já saiu.
+			anterior?.Dispose();
 		}
 	}
 }
