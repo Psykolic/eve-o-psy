@@ -10,6 +10,7 @@ Forgejo — aqui é o único lugar onde o texto sobreviveu.
 | [8.2.2](8.2.2.md) | Refresh por evento: −64% de CPU idle |
 | [8.3.0](8.3.0.md) | Migração para Forgejo (o app não muda) |
 | [8.3.1](8.3.1.md) | Primeira release publicada no Forgejo |
+| [8.3.2](8.3.2.md) | Manutenção: config inválida não fecha o app, handle DWM em `SafeHandle`, métricas opcionais |
 
 A partir da 8.3.1 a fonte da verdade é a release no Forgejo (`scripts/release.sh` publica o corpo).
 Estas notas são histórico, não são republicadas.
