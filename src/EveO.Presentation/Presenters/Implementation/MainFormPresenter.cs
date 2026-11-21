@@ -142,7 +142,7 @@ namespace EveOPreview.Presenters
 		private void LoadApplicationSettings()
 		{
 			ConfigurationValidationResult configurationResult = this._configurationStorage.Load();
-			if (!configurationResult.IsValid)
+			if (!configurationResult.IsValid || configurationResult.HasNotices)
 			{
 				// Arquivo corrigido no carregamento: registra e avisa, em vez de trocar
 				// os valores do usuário em silêncio (item 1.4 do roadmap).

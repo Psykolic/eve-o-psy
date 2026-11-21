@@ -1,6 +1,6 @@
 # ADR-009 — Alvo da Fase 3: ficar no Windows, oficializar o caminho Wine, ou reescrever a UI
 
-**Status**: Proposed (decisão do mantenedor)
+**Status**: Accepted (2026-11-21)
 **Data**: 2026-11-21
 **Substitui**: nada. Complementa ADR-006, 007 e 008.
 
