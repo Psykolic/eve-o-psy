@@ -11,7 +11,7 @@
 | **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
 | **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 1.3 parcial; 1.1, 1.2, 1.4, 1.5, 1.6 e 1.7 ✅ |
 | **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | ✅ concluída |
-| **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ⬜ não iniciada |
+| **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ⬜ cross-platform **adiada** (ADR-009) · extensibilidade (3.3/3.4/3.6) liberada |
 
 > **Legenda de Prioridade**: P0 = Blocker (impede progresso), P1 = Crítico (risco alto), P2 = Importante (dívida técnica), P3 = Nice-to-have (melhoria futura)
 
@@ -150,7 +150,7 @@ Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições**
 
 ---
 
-## Fase 3 — Cross-Platform & Extensibility (não iniciada)
+## Fase 3 — Cross-Platform & Extensibility (dividida pelo ADR-009)
 
 ### Objetivo
 Habilitar execução nativa no Linux/macOS via Avalonia/Uno, introduzir plugin architecture para extensibilidade comunitária e implementar event sourcing para auditoria/histórico de layouts.
@@ -159,12 +159,24 @@ Habilitar execução nativa no Linux/macOS via Avalonia/Uno, introduzir plugin a
 
 | ID | Deliverable | Acceptance Criteria (Mensurável) | Prioridade | Auditoria Ref. |
 |----|-------------|----------------------------------|------------|----------------|
-| **3.1** | Proof-of-Concept Avalonia 11 / Uno Platform | • `EveO.Avalonia` project compila e roda no Linux (Wayland + X11)<br>• Thumbnail preview via compositor nativo (não DWM) — ex: `wlr-screencopy` / PipeWire<br>• Feature parity: cycle clients, minimize all, layout save/load | **P2** | #6.13 |
-| **3.2** | Abstração de plataforma `IPlatformWindowManager` + `IPlatformThumbnailProvider` | • Windows: `DwmThumbnailProvider`, `Win32WindowManager`<br>• Linux: `PipeWireThumbnailProvider`, `WaylandWindowManager` / `X11WindowManager`<br>• macOS: `ScreenCaptureKitThumbnailProvider`, `CocoaWindowManager` | **P2** | #6.1, #6.8 |
-| **3.3** | Plugin Architecture (MEF / System.ComponentModel.Composition ou custom) | • `IPlugin` interface com `Initialize(IServiceCollection)`, `Metadata`<br>• Plugins carregados de `%APPDATA%\EVE-O\Plugins\`<br>• Exemplo plugin: "Discord Rich Presence", "Overlay Custom", "Metrics Exporter"<br>• Sandbox: plugins rodam em `AssemblyLoadContext` isolado | **P2** | #6.15 |
-| **3.4** | Event Sourcing para layout/histórico de clientes | • `ClientLayoutEventStore` (EventStoreDB ou SQLite + append-only)<br>• Eventos: `ClientAdded`, `ClientRemoved`, `LayoutSaved`, `CycleGroupChanged`, `FrameSettingsChanged`<br>• Projeções: `CurrentLayoutView`, `ClientSessionHistory`<br>• Time-travel debug: replay eventos para reproduzir estado | **P3** | #6.14 |
-| **3.5** | CI/CD Multi-platform (Windows, Linux, macOS) | • Build matrix: win-x64, linux-x64, osx-x64, osx-arm64<br>• Publish: MSIX (Windows), AppImage/Flatpak (Linux), .app/dmg (macOS)<br>• Auto-update via GitHub Releases + custom updater | **P3** | #7.6 |
-| **3.6** | Documentação de contribuição + plugin SDK | • `CONTRIBUTING.md`, `PLUGIN_DEVELOPMENT.md`<br>• NuGet package `EveO.Plugin.Sdk`<br>• Template `dotnet new eveo-plugin` | **P3** | #6.15 |
+| **3.1** ⏸ | Proof-of-Concept Avalonia 11 / Uno Platform | • `EveO.Avalonia` project compila e roda no Linux (Wayland + X11)<br>• Thumbnail preview via compositor nativo (não DWM) — ex: `wlr-screencopy` / PipeWire<br>• Feature parity: cycle clients, minimize all, layout save/load | **P2** | #6.13 |
+| **3.2** ⏸ | Abstração de plataforma `IPlatformWindowManager` + `IPlatformThumbnailProvider` | • Windows: `DwmThumbnailProvider`, `Win32WindowManager`<br>• Linux: `PipeWireThumbnailProvider`, `WaylandWindowManager` / `X11WindowManager`<br>• macOS: `ScreenCaptureKitThumbnailProvider`, `CocoaWindowManager` | **P2** | #6.1, #6.8 |
+| **3.3** ⬜ | Plugin Architecture (MEF / System.ComponentModel.Composition ou custom) | • `IPlugin` interface com `Initialize(IServiceCollection)`, `Metadata`<br>• Plugins carregados de `%APPDATA%\EVE-O\Plugins\`<br>• Exemplo plugin: "Discord Rich Presence", "Overlay Custom", "Metrics Exporter"<br>• Sandbox: plugins rodam em `AssemblyLoadContext` isolado | **P2** | #6.15 |
+| **3.4** ⬜ | Event Sourcing para layout/histórico de clientes | • `ClientLayoutEventStore` (EventStoreDB ou SQLite + append-only)<br>• Eventos: `ClientAdded`, `ClientRemoved`, `LayoutSaved`, `CycleGroupChanged`, `FrameSettingsChanged`<br>• Projeções: `CurrentLayoutView`, `ClientSessionHistory`<br>• Time-travel debug: replay eventos para reproduzir estado | **P3** | #6.14 |
+| **3.5** ⏸ | CI/CD Multi-platform (Windows, Linux, macOS) | • Build matrix: win-x64, linux-x64, osx-x64, osx-arm64<br>• Publish: MSIX (Windows), AppImage/Flatpak (Linux), .app/dmg (macOS)<br>• Auto-update via GitHub Releases + custom updater | **P3** | #7.6 |
+| **3.6** ⬜ | Documentação de contribuição + plugin SDK | • `CONTRIBUTING.md`, `PLUGIN_DEVELOPMENT.md`<br>• NuGet package `EveO.Plugin.Sdk`<br>• Template `dotnet new eveo-plugin` | **P3** | #6.15 |
+
+### Decisão do ADR-009 (2026-11-21)
+
+A Fase 3 foi **dividida em duas trilhas**:
+
+- **cross-platform (3.1, 3.2, 3.5) — adiada.** Trocar a UI não resolve o bloqueio real: no Linux não
+  existe equivalente ao DWM para espelhar janela de terceiro em tempo real. Reescrever 8.387 linhas de
+  WinForms entregaria a mesma captura estática com outra aparência.
+- **extensibilidade (3.3, 3.4, 3.6) — liberada**, porque não depende de UI nem de DWM.
+
+Gates para reabrir a trilha cross-platform: demanda comprovada E spike de 3 dias mostrando ≥ 90% dos
+casos com captura nativa. Ver `audits/adr-009-alvo-fase-3.md`.
 
 ### Dependências
 - 3.1 → 3.2 (PoC valida abstrações)
