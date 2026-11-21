@@ -16,6 +16,11 @@ O limite padrão é **20%**, não 10%: medindo duas rodadas idênticas no host, 
 alarme falso é pior que nenhum. Para apertar, use um job com mais iterações e meça o ruído de novo
 antes de baixar o limite.
 
+Além do percentual, o comparador exige que a diferença **absoluta** passe de 50 ns e ignora
+benchmarks abaixo de 100 ns. Sem isso, o primeiro disparo do job acusou "regressão" de 22% num
+benchmark de **2,4 ns** — ou seja, 0,5 ns, ruído puro. Percentual em escala de nanossegundos
+não é sinal; é arredondamento.
+
 ## O que é medido
 
 | Benchmark | Por quê |
