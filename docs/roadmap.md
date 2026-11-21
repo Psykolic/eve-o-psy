@@ -10,7 +10,7 @@
 |------|------|----------|------------------|------------------|--------|
 | **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
 | **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 parcial (1.1 e 1.7 ✅; 1.2/1.3 parciais; 1.4–1.6 não adotados) |
-| **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | 🟢 em andamento — **falta 2.6** |
+| **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | ✅ concluída |
 | **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ⬜ não iniciada |
 
 > **Legenda de Prioridade**: P0 = Blocker (impede progresso), P1 = Crítico (risco alto), P2 = Importante (dívida técnica), P3 = Nice-to-have (melhoria futura)
@@ -34,7 +34,7 @@
 | 2.3 Virtualização | ✅ decidido **não fazer** | ADR-007 (gate não passou) |
 | 2.4 Pool DWM | ✅ decidido **não fazer** | ADR-008 (~0,012 ms por registro) |
 | 2.5 Testes Win32/GDI | ✅ | `GdiFailureTests`, `GdiStressTests`, `ThumbnailManagerStabilityTests` no job Windows |
-| 2.6 Config event-driven | ⬜ **aberto** | alteração de config ainda chega pelo `DispatcherTimer` |
+| 2.6 Config event-driven | ✅ | `SaveConfigurationHandler` publica `ConfigurationChangedNotification`; `ConfigurationChangedHandler` aplica `RefreshTimerInterval`/`RefreshZoomFactor` (com a proteção da #125); testes em `EveO.Tests/Mediator/ConfigurationChangedTests.cs` |
 | 2.7 Docs de arquitetura | ✅ | ADRs + `docs/architecture/README.md` + `audits/architecture-c4.md` |
 
 
@@ -97,7 +97,7 @@ Eliminar blockers de produção, estabelecer infraestrutura de testes automatiza
 
 ---
 
-## Fase 2 — Architecture Cleanup (em andamento — falta 2.6)
+## Fase 2 — Architecture Cleanup (concluída)
 
 ### Objetivo
 Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições** se padrões reativos e virtualização são necessários, e implementar apenas o que dados reais justificarem.
@@ -118,7 +118,7 @@ Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições**
 | **2.3** ✅ | **Spike técnico (2 dias)**: Avaliar virtualização de thumbnails (render apenas visíveis) | • Prototype: `VirtualizingThumbnailPanel` (WPF) ou ocultar DWM thumbnails fora do viewport<br>• Medir memória/CPU 7 clientes: baseline vs virtualizado<br>• **Gate**: Só prossegue se redução >20% memória comprovada<br>• Documentar decisão no ADR-007 | **P1** | #6.8, #5.1, #H6 |
 | **2.4** ✅ | **Spike técnico (2 dias)**: Avaliar pool de `DwmThumbnail` (registro/desregistro reutilizado) | • Prototype: `ThumbnailPool : IThumbnailPool` com `Rent()`/`Return()`<br>• Medir: handles DWM abertos, latency refresh, falhas `DwmRegisterThumbnail` sob carga<br>• **Gate**: Só prossegue se limite real de handles DWM comprovado (#H3) OU latency >30ms comprovado<br>• Documentar decisão no ADR-008 | **P2** | #6.2, #6.4, #H3 |
 | **2.5** ✅ | Testes de integração Win32 com TestContainers / Docker | • Container Windows Server Core ou Wine para CI<br>• Testes: `DwmThumbnailProvider.Register`, `WindowManager.Activate`, hotkeys globais<br>• Executam em CI (GitHub Actions self-hosted runners Windows) | **P2** | #6.9 |
-| **2.6** ⬜ | Event-driven config changes (MediatR notifications) | • `ConfigurationChangedNotification` publicado ao salvar<br>• `ThumbnailOrchestrator` reage via handler (não polling)<br>• Hot-reload de `ThumbnailRefreshPeriod`, `ZoomFactor` sem restart<br>• **Regression**: Config save/load funciona idêntico | **P2** | #5.3, #6.7 |
+| **2.6** ✅ | Event-driven config changes (MediatR notifications) | • `ConfigurationChangedNotification` publicado ao salvar<br>• `ThumbnailOrchestrator` reage via handler (não polling)<br>• Hot-reload de `ThumbnailRefreshPeriod`, `ZoomFactor` sem restart<br>• **Regression**: Config save/load funciona idêntico | **P2** | #5.3, #6.7 |
 | **2.7** ✅ | Documentação de arquitetura atualizada (C4 + ADRs) | • Diagramas C4: Context, Container, Component, Code<br>• ADR-004 a ADR-008 documentando decisões da Fase 2<br>• `docs/architecture/README.md` com visão geral | **P3** | #7.5 |
 
 ### Evidências da Fase 2
