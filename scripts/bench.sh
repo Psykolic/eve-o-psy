@@ -36,4 +36,7 @@ EXTRA=()
 python3 "$ROOT/benchmarks/compare.py" \
   --results "$ARTEFATOS" \
   --baseline "$BASELINE" \
-  --threshold "$LIMITE" "${EXTRA[@]+"${EXTRA[@]}"}"
+  --threshold "$LIMITE" \
+  --min-ns "${BENCH_MIN_NS:-100}" \
+  --min-delta-ns "${BENCH_MIN_DELTA_NS:-50}" \
+  "${EXTRA[@]+"${EXTRA[@]}"}"

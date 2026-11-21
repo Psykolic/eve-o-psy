@@ -3,9 +3,14 @@
 
 Uso:
   compare.py --results <pasta de resultados .json> --baseline benchmarks/baseline.json \
-             [--threshold 10] [--update]
+             [--threshold 20] [--min-ns 100] [--min-delta-ns 50] [--update]
 
-Sai 1 quando algum benchmark piora mais que o limite (regressão).
+Sai 1 quando algum benchmark piora de forma relevante.
+
+Duas travas contra falso positivo:
+  --min-ns        benchmarks abaixo disso (ex.: 2,4 ns) não bloqueiam: 0,5 ns de
+                  diferença não é regressão, é ruído de medição;
+  --min-delta-ns  além do percentual, a diferença absoluta precisa passar disso.
 
 Formatos aceitos (o BenchmarkDotNet grava os dois):
   - lista de relatórios;
@@ -41,9 +46,7 @@ def nome_do_benchmark(item):
     descritor = item.get("Descriptor") or {}
     tipo = descritor.get("Type") or item.get("Type")
     metodo = descritor.get("Method") or item.get("Method")
-    if tipo and metodo:
-        return f"{tipo}.{metodo}"
-    return None
+    return f"{tipo}.{metodo}" if tipo and metodo else None
 
 
 def carregar_resultados(pasta):
@@ -66,6 +69,10 @@ def main():
     ap.add_argument("--results", required=True)
     ap.add_argument("--baseline", required=True)
     ap.add_argument("--threshold", type=float, default=20.0)
+    ap.add_argument("--min-ns", type=float, default=100.0,
+                    help="abaixo disso o benchmark não bloqueia (ruído domina)")
+    ap.add_argument("--min-delta-ns", type=float, default=50.0,
+                    help="diferença absoluta mínima para contar como regressão")
     ap.add_argument("--update", action="store_true")
     args = ap.parse_args()
 
@@ -87,10 +94,18 @@ def main():
         if antes is None:
             print(f"    {nome:<52} {atual/1000:>9.2f} µs   (sem baseline)")
             continue
+
         variacao = (atual - antes) / antes * 100.0 if antes else 0.0
-        marca = "  " if variacao <= args.threshold else "!!"
+        delta = atual - antes
+
+        if atual < args.min_ns:
+            print(f"    {nome:<52} {atual/1000:>9.2f} µs   {variacao:+6.1f}%   (abaixo do piso, não bloqueia)")
+            continue
+
+        relevante = variacao > args.threshold and delta > args.min_delta_ns
+        marca = "!!" if relevante else "  "
         print(f"    {nome:<52} {atual/1000:>9.2f} µs   {variacao:+6.1f}%  {marca}")
-        if variacao > args.threshold:
+        if relevante:
             piora.append((nome, antes, atual, variacao))
 
     if args.update:
@@ -98,18 +113,20 @@ def main():
             "gerado_por": "scripts/bench.sh --update",
             "maquina": "e52680v3 (Xeon E5-2680 v3)",
             "threshold_percent": args.threshold,
+            "min_ns_para_bloquear": args.min_ns,
+            "min_delta_ns": args.min_delta_ns,
             "benchmarks": atuais,
         }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"  baseline atualizado: {args.baseline}")
         return 0
 
     if piora:
-        print(f"\n  REGRESSAO acima de {args.threshold:.0f}% em {len(piora)} benchmark(s):")
+        print(f"\n  REGRESSAO em {len(piora)} benchmark(s) (>{args.threshold:.0f}% e >{args.min_delta_ns:.0f} ns):")
         for nome, antes, atual, variacao in piora:
             print(f"    {nome}: {antes/1000:.2f} µs -> {atual/1000:.2f} µs ({variacao:+.1f}%)")
         return 1
 
-    print(f"\n  ok: nenhum benchmark piorou mais de {args.threshold:.0f}%")
+    print(f"\n  ok: nenhum benchmark relevante piorou mais de {args.threshold:.0f}%")
     return 0
 
 
