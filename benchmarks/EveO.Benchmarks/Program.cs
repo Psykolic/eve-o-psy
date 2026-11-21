@@ -36,6 +36,8 @@ public class ProcessSetDiffBenchmarks
     [Benchmark]
     public object UpdateComMesmoConjunto() => _diff.Update(_observed);
 
+    // Não é caminho de produção (o app usa Update/GetUpdatedProcesses): fica medido
+    // como referência da API de instantâneo, com o custo de alocação explícito.
     [Benchmark]
     public object LerConhecidos() => _diff.Known;
 }
