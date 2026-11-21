@@ -1,0 +1,15 @@
+# Notas de release
+
+Registro das versões do EVE-O Preview. Existe porque as releases **8.2.1, 8.2.2 e 8.3.0**
+foram publicadas no GitHub antes da migração (Fase 3) e não têm release correspondente no
+Forgejo — aqui é o único lugar onde o texto sobreviveu.
+
+| Versão | Tema |
+|---|---|
+| [8.2.1](8.2.1.md) | Arquitetura em camadas e correção de inicialização |
+| [8.2.2](8.2.2.md) | Refresh por evento: −64% de CPU idle |
+| [8.3.0](8.3.0.md) | Migração para Forgejo (o app não muda) |
+| [8.3.1](8.3.1.md) | Primeira release publicada no Forgejo |
+
+A partir da 8.3.1 a fonte da verdade é a release no Forgejo (`scripts/release.sh` publica o corpo).
+Estas notas são histórico, não são republicadas.
