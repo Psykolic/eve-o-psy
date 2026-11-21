@@ -1,4 +1,5 @@
 ﻿using EveOPreview.Configuration;
+using EveOPreview.Diagnostics;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.Refresh;
 using EveOPreview.Services.Interop;
@@ -128,6 +129,9 @@ namespace EveOPreview.Services
 
 			this._thumbnailViews = new Dictionary<IntPtr, IThumbnailView>();
 			this._spotlightViews = new Dictionary<IntPtr, IThumbnailView>();
+
+			// Thumbnails DWM registradas = views vivas (é o que o gerenciador mantém).
+			EveOMetrics.DwmHandleProvider = () => this._thumbnailViews.Count;
 			this._asyncOperations = new AsyncOperationTracker();
 			this._spotlightsVisible = true;
 			this._spotlightLayoutDirty = false;
@@ -888,8 +892,16 @@ namespace EveOPreview.Services
 		private void ThumbnailUpdateTimerTick(object sender, EventArgs e)
 		{
 			this.EnsureThumbnailViewsThread(nameof(ThumbnailUpdateTimerTick));
+
+			long startTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 			this.UpdateThumbnailsList();
 			this.RefreshThumbnails();
+			double durationMs = (System.Diagnostics.Stopwatch.GetTimestamp() - startTicks)
+				* 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+			// Medir não decide nada: só publica o ciclo e o número de thumbnails vivas.
+			EveOMetrics.RecordRefresh(durationMs, this._thumbnailViews.Count);
+			EveOMetrics.WriteSnapshotIfDue(DateTime.UtcNow);
 
 			// Fim da janela de settle: o timer volta a ser só reconciliação.
 			if (this._settleTicksRemaining > 0)
