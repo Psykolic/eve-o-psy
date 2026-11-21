@@ -141,7 +141,14 @@ namespace EveOPreview.Presenters
 
 		private void LoadApplicationSettings()
 		{
-			this._configurationStorage.Load();
+			ConfigurationValidationResult configurationResult = this._configurationStorage.Load();
+			if (!configurationResult.IsValid)
+			{
+				// Arquivo corrigido no carregamento: registra e avisa, em vez de trocar
+				// os valores do usuário em silêncio (item 1.4 do roadmap).
+				AppOperationLog.Record("config: " + configurationResult.Summary());
+				this.View.ShowConfigurationWarning(configurationResult.Summary());
+			}
 
 			// A fonte do overlay é neutra (string) no Core; o padrão depende da
 			// resolução de GenericSansSerif, então é definido aqui no executável (issue #162).
