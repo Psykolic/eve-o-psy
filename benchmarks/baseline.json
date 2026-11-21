@@ -1,0 +1,15 @@
+{
+  "gerado_por": "scripts/bench.sh --update",
+  "maquina": "e52680v3 (Xeon E5-2680 v3)",
+  "threshold_percent": 10.0,
+  "benchmarks": {
+    "ConfigurationLookupBenchmarks.TamanhoPorCliente_ComSobreposicao": 15.169,
+    "ConfigurationLookupBenchmarks.TamanhoPorCliente_SemSobreposicao": 15.796,
+    "ConfigurationLookupBenchmarks.ClienteDesabilitado": 2.357,
+    "GeometryBenchmarks.RedimensionarSpotlight": 15.948,
+    "GeometryBenchmarks.MapearSelecao": 53.123,
+    "GeometryBenchmarks.LimitarTamanho": 15.808,
+    "ProcessSetDiffBenchmarks.UpdateComMesmoConjunto": 623.943,
+    "ProcessSetDiffBenchmarks.LerConhecidos": 173.109
+  }
+}
