@@ -35,8 +35,6 @@ public sealed class ThumbnailManagerUiThreadConfinementTests
 
         public IProcessInfo GetMainProcess() => null!;
 
-        public ICollection<IProcessInfo> GetAllProcesses() => this.Added;
-
         public void GetUpdatedProcesses(
             out ICollection<IProcessInfo> addedProcesses,
             out ICollection<IProcessInfo> updatedProcesses,

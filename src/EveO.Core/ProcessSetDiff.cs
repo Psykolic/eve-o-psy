@@ -92,6 +92,10 @@ namespace EveOPreview.Services
 
 		/// <summary>
 		/// Janelas conhecidas que continuam ativas, incluindo as que estão em miss transitório.
+		///
+		/// Instantâneo para diagnóstico/teste — aloca uma lista e uma entrada por processo.
+		/// O caminho de produção é <see cref="Update"/>, que devolve só o que mudou; não use
+		/// isto em laço quente.
 		/// </summary>
 		public IReadOnlyList<ProcessSetEntry> Known
 		{

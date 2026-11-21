@@ -59,20 +59,6 @@ namespace EveOPreview.Services.Implementation
 			return this._currentProcessInfo;
 		}
 
-		public ICollection<IProcessInfo> GetAllProcesses()
-		{
-			IReadOnlyList<ProcessSetEntry> knownProcesses = this._processDiff.Known;
-			ICollection<IProcessInfo> result = new List<IProcessInfo>(knownProcesses.Count);
-
-			// TODO Lock list here just in case
-			foreach (ProcessSetEntry entry in knownProcesses)
-			{
-				result.Add(new ProcessInfo(entry.Handle, entry.Title));
-			}
-
-			return result;
-		}
-
 		/// <summary>
 		/// Confirma que o handle/processo ainda existe. A ausência temporária do
 		/// MainWindowHandle (cliente sem responder, minimizado ou na tela de login)
