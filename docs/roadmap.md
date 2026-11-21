@@ -6,14 +6,37 @@
 
 ## Resumo Executivo
 
-| Fase | Nome | Objetivo | Duração Estimada | Prioridade Geral |
-|------|------|----------|------------------|------------------|
-| **0** | **Foundations** (atual) | Auditoria completa, baseline estabelecido | Concluído | — |
-| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** |
-| **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** |
-| **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** |
+| Fase | Nome | Objetivo | Duração Estimada | Prioridade Geral | Estado |
+|------|------|----------|------------------|------------------|--------|
+| **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
+| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 parcial (1.1 e 1.7 ✅; 1.2/1.3 parciais; 1.4–1.6 não adotados) |
+| **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | 🟢 em andamento — **falta 2.6** |
+| **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ⬜ não iniciada |
 
 > **Legenda de Prioridade**: P0 = Blocker (impede progresso), P1 = Crítico (risco alto), P2 = Importante (dívida técnica), P3 = Nice-to-have (melhoria futura)
+
+> **Regra de leitura:** este documento é o **plano**. O que **já existe** está na tabela abaixo, com
+> evidência (PR, ADR ou teste). Antes de planejar, confira o código — o plano não anda sozinho.
+
+### Estado verificado em 2026-11-21
+
+| Item | Estado | Evidência |
+|------|--------|-----------|
+| 1.1 Testes | ✅ | `EveO.Core.Tests` (130 `[Fact]`) + `EveO.Tests` (71 `[Fact]`) |
+| 1.2 `IThumbnailProvider` | 🟡 parcial | abstração real é `IStaticThumbnailGdi` + `StaticThumbnailGdi` (Infrastructure); não existe `IThumbnailProvider` com esse nome |
+| 1.3 Handles GDI | 🟡 parcial | `GdiFailureTests` (12 cenários) e `GdiStressTests` no CI Windows; **não** há `SafeHandle`/`CriticalFinalizerObject` |
+| 1.4 Validação de config | ❌ não adotado | sem FluentValidation; validação é manual |
+| 1.5 Métricas | ❌ | sem `System.Diagnostics.Metrics` |
+| 1.6 Benchmarks | ❌ | sem projeto `Benchmarks` |
+| 1.7 ADRs | ✅ | ADR-001, 004, 005, 006, 007, 008 (+ `architecture-c4.md`) |
+| 2.1 Camadas | ✅ | ondas 0–4b (#157–#171) |
+| 2.2 Push-based | ✅ | ADR-006 aceito; #173 e #175 |
+| 2.3 Virtualização | ✅ decidido **não fazer** | ADR-007 (gate não passou) |
+| 2.4 Pool DWM | ✅ decidido **não fazer** | ADR-008 (~0,012 ms por registro) |
+| 2.5 Testes Win32/GDI | ✅ | `GdiFailureTests`, `GdiStressTests`, `ThumbnailManagerStabilityTests` no job Windows |
+| 2.6 Config event-driven | ⬜ **aberto** | alteração de config ainda chega pelo `DispatcherTimer` |
+| 2.7 Docs de arquitetura | ✅ | ADRs + `docs/architecture/README.md` + `audits/architecture-c4.md` |
+
 
 ---
 
@@ -31,7 +54,7 @@
 
 ---
 
-## Fase 1 — Stabilization (1–2 Sprints)
+## Fase 1 — Stabilization (concluída em parte — ver estado acima)
 
 ### Objetivo
 Eliminar blockers de produção, estabelecer infraestrutura de testes automatizados e introduzir abstrações para desacoplar DWM/Win32 do núcleo da aplicação. **Prioridade absoluta: estabilidade, gerenciamento correto de recursos GDI/DWM, integridade das configurações e testes de regressão.**
@@ -74,7 +97,7 @@ Eliminar blockers de produção, estabelecer infraestrutura de testes automatiza
 
 ---
 
-## Fase 2 — Architecture Cleanup (3–5 Sprints)
+## Fase 2 — Architecture Cleanup (em andamento — falta 2.6)
 
 ### Objetivo
 Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições** se padrões reativos e virtualização são necessários, e implementar apenas o que dados reais justificarem.
@@ -90,13 +113,24 @@ Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições**
 
 | ID | Deliverable | Acceptance Criteria (Mensurável) | Prioridade | Auditoria Ref. |
 |----|-------------|----------------------------------|------------|----------------|
-| **2.1** | Separação de camadas: `EveO.Core` (Domain), `EveO.Infrastructure` (Win32/DWM), `EveO.Presentation` (Views) | • `EveO.Core` zero dependências Windows-only (netstandard2.1 ou net8.0)<br>• `ThumbnailManager` → `ThumbnailOrchestrator` em Core, usa `IThumbnailProvider`/`IWindowManager` de Infrastructure<br>• Build `EveO.Core` passa em Linux (`dotnet build --os linux`)<br>• **Regression**: Comportamento 6+1 clientes idêntico | **P1** | #6.8, #6.9 |
-| **2.2** | **Spike técnico (2 dias)**: Avaliar `DispatcherTimer` → Reactive Streams (`IAsyncEnumerable` + `Channel<T>` ou Rx.NET) | • Prototype com `ProcessMonitor` push-based (event-driven process changes)<br>• Medir CPU idle 7 clientes: baseline (timer 500ms) vs push-based<br>• **Gate**: Só prossegue se redução >30% CPU idle comprovada<br>• Documentar decisão no ADR-006 | **P1** | #6.2, #6.7, #H2 |
-| **2.3** | **Spike técnico (2 dias)**: Avaliar virtualização de thumbnails (render apenas visíveis) | • Prototype: `VirtualizingThumbnailPanel` (WPF) ou ocultar DWM thumbnails fora do viewport<br>• Medir memória/CPU 7 clientes: baseline vs virtualizado<br>• **Gate**: Só prossegue se redução >20% memória comprovada<br>• Documentar decisão no ADR-007 | **P1** | #6.8, #5.1, #H6 |
-| **2.4** | **Spike técnico (2 dias)**: Avaliar pool de `DwmThumbnail` (registro/desregistro reutilizado) | • Prototype: `ThumbnailPool : IThumbnailPool` com `Rent()`/`Return()`<br>• Medir: handles DWM abertos, latency refresh, falhas `DwmRegisterThumbnail` sob carga<br>• **Gate**: Só prossegue se limite real de handles DWM comprovado (#H3) OU latency >30ms comprovado<br>• Documentar decisão no ADR-008 | **P2** | #6.2, #6.4, #H3 |
-| **2.5** | Testes de integração Win32 com TestContainers / Docker | • Container Windows Server Core ou Wine para CI<br>• Testes: `DwmThumbnailProvider.Register`, `WindowManager.Activate`, hotkeys globais<br>• Executam em CI (GitHub Actions self-hosted runners Windows) | **P2** | #6.9 |
-| **2.6** | Event-driven config changes (MediatR notifications) | • `ConfigurationChangedNotification` publicado ao salvar<br>• `ThumbnailOrchestrator` reage via handler (não polling)<br>• Hot-reload de `ThumbnailRefreshPeriod`, `ZoomFactor` sem restart<br>• **Regression**: Config save/load funciona idêntico | **P2** | #5.3, #6.7 |
-| **2.7** | Documentação de arquitetura atualizada (C4 + ADRs) | • Diagramas C4: Context, Container, Component, Code<br>• ADR-004 a ADR-008 documentando decisões da Fase 2<br>• `docs/architecture/README.md` com visão geral | **P3** | #7.5 |
+| **2.1** ✅ | Separação de camadas: `EveO.Core` (Domain), `EveO.Infrastructure` (Win32/DWM), `EveO.Presentation` (Views) | • `EveO.Core` zero dependências Windows-only (netstandard2.1 ou net8.0)<br>• `ThumbnailManager` → `ThumbnailOrchestrator` em Core, usa `IThumbnailProvider`/`IWindowManager` de Infrastructure<br>• Build `EveO.Core` passa em Linux (`dotnet build --os linux`)<br>• **Regression**: Comportamento 6+1 clientes idêntico | **P1** | #6.8, #6.9 |
+| **2.2** ✅ | **Spike técnico (2 dias)**: Avaliar `DispatcherTimer` → Reactive Streams (`IAsyncEnumerable` + `Channel<T>` ou Rx.NET) | • Prototype com `ProcessMonitor` push-based (event-driven process changes)<br>• Medir CPU idle 7 clientes: baseline (timer 500ms) vs push-based<br>• **Gate**: Só prossegue se redução >30% CPU idle comprovada<br>• Documentar decisão no ADR-006 | **P1** | #6.2, #6.7, #H2 |
+| **2.3** ✅ | **Spike técnico (2 dias)**: Avaliar virtualização de thumbnails (render apenas visíveis) | • Prototype: `VirtualizingThumbnailPanel` (WPF) ou ocultar DWM thumbnails fora do viewport<br>• Medir memória/CPU 7 clientes: baseline vs virtualizado<br>• **Gate**: Só prossegue se redução >20% memória comprovada<br>• Documentar decisão no ADR-007 | **P1** | #6.8, #5.1, #H6 |
+| **2.4** ✅ | **Spike técnico (2 dias)**: Avaliar pool de `DwmThumbnail` (registro/desregistro reutilizado) | • Prototype: `ThumbnailPool : IThumbnailPool` com `Rent()`/`Return()`<br>• Medir: handles DWM abertos, latency refresh, falhas `DwmRegisterThumbnail` sob carga<br>• **Gate**: Só prossegue se limite real de handles DWM comprovado (#H3) OU latency >30ms comprovado<br>• Documentar decisão no ADR-008 | **P2** | #6.2, #6.4, #H3 |
+| **2.5** ✅ | Testes de integração Win32 com TestContainers / Docker | • Container Windows Server Core ou Wine para CI<br>• Testes: `DwmThumbnailProvider.Register`, `WindowManager.Activate`, hotkeys globais<br>• Executam em CI (GitHub Actions self-hosted runners Windows) | **P2** | #6.9 |
+| **2.6** ⬜ | Event-driven config changes (MediatR notifications) | • `ConfigurationChangedNotification` publicado ao salvar<br>• `ThumbnailOrchestrator` reage via handler (não polling)<br>• Hot-reload de `ThumbnailRefreshPeriod`, `ZoomFactor` sem restart<br>• **Regression**: Config save/load funciona idêntico | **P2** | #5.3, #6.7 |
+| **2.7** ✅ | Documentação de arquitetura atualizada (C4 + ADRs) | • Diagramas C4: Context, Container, Component, Code<br>• ADR-004 a ADR-008 documentando decisões da Fase 2<br>• `docs/architecture/README.md` com visão geral | **P3** | #7.5 |
+
+### Evidências da Fase 2
+
+| Item | Resultado |
+|---|---|
+| 2.1 | `EveO.Core` (Domain), `EveO.Infrastructure` (Win32/GDI/DWM), `EveO.Presentation` (Views); ondas #157–#171 |
+| 2.2 | `IClientChangeSignal` push-based (#173) + refresh event-driven (#175); ADR-006 |
+| 2.3 | **Não implementar** — gate de memória não passou em 7 clientes reais (ADR-007) |
+| 2.4 | **Não implementar** — registro/desregistro custa ~0,012 ms, 2.500× abaixo do gate (ADR-008) |
+| 2.5 | Testes de falha GDI e de estabilidade rodam no job Windows do CI |
+| 2.7 | ADR-004 a ADR-008 + C4 |
 
 ### Dependências
 - 2.1 → 2.2, 2.3, 2.4 (core abstractions first)
@@ -116,7 +150,7 @@ Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições**
 
 ---
 
-## Fase 3 — Cross-Platform & Extensibility (6+ Sprints)
+## Fase 3 — Cross-Platform & Extensibility (não iniciada)
 
 ### Objetivo
 Habilitar execução nativa no Linux/macOS via Avalonia/Uno, introduzir plugin architecture para extensibilidade comunitária e implementar event sourcing para auditoria/histórico de layouts.
