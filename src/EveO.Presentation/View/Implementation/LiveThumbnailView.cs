@@ -32,7 +32,7 @@ namespace EveOPreview.View
 				this.RegisterThumbnail();
 			}
 			
-			obsoleteThumbnail?.Unregister();
+			obsoleteThumbnail?.Dispose();
 		}
 
 		protected override void ResizeThumbnail(int baseWidth, int baseHeight, int highlightWidthTop, int highlightWidthRight, int highlightWidthBottom, int highlightWidthLeft)
@@ -72,7 +72,7 @@ namespace EveOPreview.View
 
 		public override void Close()
 		{
-			this._thumbnail?.Unregister();
+			this._thumbnail?.Dispose();
 			this._thumbnail = null;
 
 			base.Close();
