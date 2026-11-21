@@ -19,8 +19,10 @@ public sealed class ConfigurationChangedTests
     public async Task ConfigurationChanged_AplicaTimerEZoom()
     {
         var manager = new Mock<IThumbnailManager>(MockBehavior.Strict);
-        var handler = new ConfigurationChangedHandler(manager.Object);
+        manager.Setup(m => m.RefreshTimerInterval());
+        manager.Setup(m => m.RefreshZoomFactor());
 
+        var handler = new ConfigurationChangedHandler(manager.Object);
         await handler.Handle(new ConfigurationChangedNotification(), CancellationToken.None);
 
         manager.Verify(m => m.RefreshTimerInterval(), Times.Once);
