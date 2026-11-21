@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using EveOPreview.Configuration;
+using EveOPreview.Diagnostics;
 using EveOPreview.Presenters;
 using EveOPreview.Refresh;
 using EveOPreview.Services;
@@ -75,6 +76,9 @@ namespace EveOPreview
 			container.Register<IConfigurationValidator>();
 			container.Register<IAppConfig>();
 			container.Register<IThumbnailConfiguration>();
+
+			// Métricas (item 1.5): provedores que dependem de Windows e o retrato em arquivo.
+			MetricsSetup.Configure(container);
 
 			// Application services
 			container.Register<IThumbnailManager>();

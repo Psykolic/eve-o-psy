@@ -9,7 +9,7 @@
 | Fase | Nome | Objetivo | Duração Estimada | Prioridade Geral | Estado |
 |------|------|----------|------------------|------------------|--------|
 | **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
-| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 parcial (1.1, 1.4, 1.6 e 1.7 ✅; 1.2/1.3 parciais; 1.5 não adotado) |
+| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 parcial (1.1, 1.4, 1.5, 1.6 e 1.7 ✅; 1.2/1.3 parciais) |
 | **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | ✅ concluída |
 | **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ⬜ não iniciada |
 
@@ -26,7 +26,7 @@
 | 1.2 `IThumbnailProvider` | 🟡 parcial | abstração real é `IStaticThumbnailGdi` + `StaticThumbnailGdi` (Infrastructure); não existe `IThumbnailProvider` com esse nome |
 | 1.3 Handles GDI | 🟡 parcial | `GdiFailureTests` (12 cenários) e `GdiStressTests` no CI Windows; **não** há `SafeHandle`/`CriticalFinalizerObject` |
 | 1.4 Validação de config | ✅ | `ConfigurationValidator` + `ConfigurationLimits` (faixa única para aviso e clamp); `Load()` devolve `ConfigurationValidationResult` e o app avisa o que foi corrigido; 17 testes em `EveO.Core.Tests/Configuration` |
-| 1.5 Métricas | ❌ | sem `System.Diagnostics.Metrics` |
+| 1.5 Métricas | ✅ | `EveOMetrics` (6 instrumentos) no meter `EveO.Preview`, retrato local a cada 30 s (`EVE_METRICS=1`), `docs/metrics.md` + `metrics-dashboard.json`; **sem** exporter de rede por decisão (ver doc) |
 | 1.6 Benchmarks | ✅ | `benchmarks/EveO.Benchmarks` (8 benchmarks do Core), `benchmarks/baseline.json` e job semanal que falha acima de 20% (ruído medido: 8,3%); caminhos de DWM/WPF ficam fora e isso está documentado |
 | 1.7 ADRs | ✅ | ADR-001, 004, 005, 006, 007, 008 (+ `architecture-c4.md`) |
 | 2.1 Camadas | ✅ | ondas 0–4b (#157–#171) |

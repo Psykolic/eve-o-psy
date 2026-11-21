@@ -1,0 +1,48 @@
+{
+  "titulo": "EVE-O Preview — painel de referência",
+  "observacao": "Especificação dos painéis, não um dashboard importável: hoje não há consumidor de métricas no app (ver docs/metrics.md). Serve de contrato para quando houver (Grafana/Prometheus/OTLP).",
+  "meter": "EveO.Preview",
+  "atualizacao_sugerida": "30s",
+  "paineis": [
+    {
+      "titulo": "Refresh por ciclo",
+      "instrumento": "thumbnail.refresh.duration",
+      "tipo": "histograma",
+      "consulta": "histogram_quantile(0.95, rate(thumbnail_refresh_duration_bucket[5m]))",
+      "alerta": "p95 acima de 50 ms por 10 min",
+      "por_que": "é o custo que o usuário sente ao ciclar clientes"
+    },
+    {
+      "titulo": "Thumbnails ativas",
+      "instrumento": "thumbnail.count.active",
+      "tipo": "gauge",
+      "consulta": "thumbnail_count_active",
+      "alerta": "diferente do número de clientes EVE abertos",
+      "por_que": "detecta view órfã depois de fechar um cliente"
+    },
+    {
+      "titulo": "Handles GDI",
+      "instrumento": "gdi.handles.open",
+      "tipo": "gauge",
+      "consulta": "gdi_handles_open",
+      "alerta": "crescimento monotônico por mais de 30 min",
+      "por_que": "vazamento de GDI derruba o app depois de horas com 7 clientes"
+    },
+    {
+      "titulo": "Thumbnails DWM registradas",
+      "instrumento": "dwm.handles.open",
+      "tipo": "gauge",
+      "consulta": "dwm_handles_open",
+      "alerta": "cresce sem o número de clientes mudar",
+      "por_que": "registro por cliente (ADR-008 decidiu não usar pool)"
+    },
+    {
+      "titulo": "CPU do processo",
+      "instrumento": "cpu.usage.percent",
+      "tipo": "gauge",
+      "consulta": "cpu_usage_percent",
+      "alerta": "acima de 5% em idle (a 8.2.2 mediu 0,52%)",
+      "por_que": "regressão de polling volta a aparecer aqui"
+    }
+  ]
+}

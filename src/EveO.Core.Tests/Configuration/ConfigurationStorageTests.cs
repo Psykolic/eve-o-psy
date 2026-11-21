@@ -98,5 +98,9 @@ public sealed class ConfigurationStorageTests : IDisposable
     private sealed class StubAppConfig : IAppConfig
     {
         public string ConfigFileName { get; set; } = string.Empty;
+
+        public bool MetricsEnabled { get; set; }
+
+        public string MetricsSnapshotPath { get; set; } = string.Empty;
     }
 }
