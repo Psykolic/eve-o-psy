@@ -51,9 +51,10 @@ namespace EveOPreview.Configuration.Implementation
 			};
 
 			// Sintaxe primeiro: JSON quebrado não pode ser aplicado "pela metade".
+			JObject parsed;
 			try
 			{
-				JObject.Parse(rawData);
+				parsed = JObject.Parse(rawData);
 			}
 			catch (JsonException exception)
 			{
@@ -74,8 +75,19 @@ namespace EveOPreview.Configuration.Implementation
 				return result.Add(filename, "valor com tipo inesperado (" + exception.Message + "); mantido o anterior");
 			}
 
+			// Formato do aplicativo anterior: os grupos trocaram de forma e seriam ignorados.
+			UpstreamConfigurationImport.TryApply(parsed, this._thumbnailConfiguration, result);
+
 			// Avisa o que estava fora da faixa e só depois corrige (mesmo clamp de antes).
 			ConfigurationValidationResult validation = this._validator.Validate(this._thumbnailConfiguration);
+			foreach (string aviso in result.Notices)
+			{
+				validation.AddNotice(aviso);
+			}
+			foreach (ConfigurationProblem problema in result.Problems)
+			{
+				validation.Add(problema.Key, problema.Message);
+			}
 			this._thumbnailConfiguration.ApplyRestrictions();
 
 			return validation;
