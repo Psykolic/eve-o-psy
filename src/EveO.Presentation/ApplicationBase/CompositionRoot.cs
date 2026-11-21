@@ -72,6 +72,7 @@ namespace EveOPreview
 
 			// Configuration services
 			container.Register<IConfigurationStorage>();
+			container.Register<IConfigurationValidator>();
 			container.Register<IAppConfig>();
 			container.Register<IThumbnailConfiguration>();
 

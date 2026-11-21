@@ -557,21 +557,21 @@ namespace EveOPreview.Configuration.Implementation
 			this.MigrateLegacySettings();
 
 #if LINUX
-			this.ThumbnailRefreshPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailRefreshPeriod, 10, 1000);
+			this.ThumbnailRefreshPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailRefreshPeriod, ConfigurationLimits.RefreshPeriodMin, ConfigurationLimits.RefreshPeriodMax);
 #else
-			this.ThumbnailRefreshPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailRefreshPeriod, 300, 1000);
+			this.ThumbnailRefreshPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailRefreshPeriod, ConfigurationLimits.RefreshPeriodMin, ConfigurationLimits.RefreshPeriodMax);
 #endif
 			// Nao mexe em EventDrivenRefresh: um valor booleano nao precisa de clamp.
-			this.ReconciliationPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ReconciliationPeriod, 1000, 60000);
-			this.ThumbnailResizeTimeoutPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailResizeTimeoutPeriod, 200, 5000);
+			this.ReconciliationPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ReconciliationPeriod, ConfigurationLimits.ReconciliationPeriodMin, ConfigurationLimits.ReconciliationPeriodMax);
+			this.ThumbnailResizeTimeoutPeriod = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailResizeTimeoutPeriod, ConfigurationLimits.ResizeTimeoutMin, ConfigurationLimits.ResizeTimeoutMax);
 			this.ThumbnailMinimumSize = new Size(
-				ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailMinimumSize.Width, 16, 7680),
-				ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailMinimumSize.Height, 9, 4320));
+				ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailMinimumSize.Width, ConfigurationLimits.MinimumWidth, ConfigurationLimits.MaximumWidth),
+				ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailMinimumSize.Height, ConfigurationLimits.MinimumHeight, ConfigurationLimits.MaximumHeight));
 			this.ThumbnailSize = new Size(ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailSize.Width, this.ThumbnailMinimumSize.Width, this.ThumbnailMaximumSize.Width),
 				ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailSize.Height, this.ThumbnailMinimumSize.Height, this.ThumbnailMaximumSize.Height));
-			this.ThumbnailOpacity = ThumbnailConfiguration.ApplyRestrictions((int)(this.ThumbnailOpacity * 100.00), 20, 100) / 100.00;
-			this.ThumbnailZoomFactor = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailZoomFactor, 2, 10);
-			this.ActiveClientHighlightThickness = ThumbnailConfiguration.ApplyRestrictions(this.ActiveClientHighlightThickness, 1, 6);
+			this.ThumbnailOpacity = ThumbnailConfiguration.ApplyRestrictions((int)(this.ThumbnailOpacity * 100.00), ConfigurationLimits.OpacityMinPercent, ConfigurationLimits.OpacityMaxPercent) / 100.00;
+			this.ThumbnailZoomFactor = ThumbnailConfiguration.ApplyRestrictions(this.ThumbnailZoomFactor, ConfigurationLimits.ZoomFactorMin, ConfigurationLimits.ZoomFactorMax);
+			this.ActiveClientHighlightThickness = ThumbnailConfiguration.ApplyRestrictions(this.ActiveClientHighlightThickness, ConfigurationLimits.HighlightThicknessMin, ConfigurationLimits.HighlightThicknessMax);
 
 			this.SpotlightClients = this.SpotlightClients ?? new List<string>();
 			this.ToggleSpotlightHotkeys = this.ToggleSpotlightHotkeys ?? new List<string>();
@@ -595,9 +595,9 @@ namespace EveOPreview.Configuration.Implementation
 					region.Height);
 			}
 			this.SpotlightSize = new Size(
-				ThumbnailConfiguration.ApplyRestrictions(this.SpotlightSize.Width, 160, 7680),
-				ThumbnailConfiguration.ApplyRestrictions(this.SpotlightSize.Height, 90, 4320));
-			this.SpotlightOpacity = ThumbnailConfiguration.ApplyRestrictions((int)(this.SpotlightOpacity * 100.00), 20, 100) / 100.00;
+				ThumbnailConfiguration.ApplyRestrictions(this.SpotlightSize.Width, ConfigurationLimits.SpotlightMinWidth, ConfigurationLimits.MaximumWidth),
+				ThumbnailConfiguration.ApplyRestrictions(this.SpotlightSize.Height, ConfigurationLimits.SpotlightMinHeight, ConfigurationLimits.MaximumHeight));
+			this.SpotlightOpacity = ThumbnailConfiguration.ApplyRestrictions((int)(this.SpotlightOpacity * 100.00), ConfigurationLimits.OpacityMinPercent, ConfigurationLimits.OpacityMaxPercent) / 100.00;
 		}
 
 		/// <summary>

@@ -9,7 +9,7 @@
 | Fase | Nome | Objetivo | Duração Estimada | Prioridade Geral | Estado |
 |------|------|----------|------------------|------------------|--------|
 | **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
-| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 parcial (1.1 e 1.7 ✅; 1.2/1.3 parciais; 1.4–1.6 não adotados) |
+| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 parcial (1.1, 1.4 e 1.7 ✅; 1.2/1.3 parciais; 1.5–1.6 não adotados) |
 | **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | ✅ concluída |
 | **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ⬜ não iniciada |
 
@@ -25,7 +25,7 @@
 | 1.1 Testes | ✅ | `EveO.Core.Tests` (130 `[Fact]`) + `EveO.Tests` (71 `[Fact]`) |
 | 1.2 `IThumbnailProvider` | 🟡 parcial | abstração real é `IStaticThumbnailGdi` + `StaticThumbnailGdi` (Infrastructure); não existe `IThumbnailProvider` com esse nome |
 | 1.3 Handles GDI | 🟡 parcial | `GdiFailureTests` (12 cenários) e `GdiStressTests` no CI Windows; **não** há `SafeHandle`/`CriticalFinalizerObject` |
-| 1.4 Validação de config | ❌ não adotado | sem FluentValidation; validação é manual |
+| 1.4 Validação de config | ✅ | `ConfigurationValidator` + `ConfigurationLimits` (faixa única para aviso e clamp); `Load()` devolve `ConfigurationValidationResult` e o app avisa o que foi corrigido; 17 testes em `EveO.Core.Tests/Configuration` |
 | 1.5 Métricas | ❌ | sem `System.Diagnostics.Metrics` |
 | 1.6 Benchmarks | ❌ | sem projeto `Benchmarks` |
 | 1.7 ADRs | ✅ | ADR-001, 004, 005, 006, 007, 008 (+ `architecture-c4.md`) |

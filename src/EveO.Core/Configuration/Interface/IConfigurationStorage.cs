@@ -2,7 +2,7 @@
 {
 	public interface IConfigurationStorage
 	{
-		void Load();
+		ConfigurationValidationResult Load();
 		void Save();
 	}
 }

@@ -65,6 +65,9 @@ namespace EveOPreview.View
 		void SetSpotlightRegionInfo(string title, Rectangle region);
 		void RefreshZoomSettings();
 
+		/// <summary>Avisa que a configuração foi corrigida no carregamento.</summary>
+		void ShowConfigurationWarning(string details);
+
 		Action ApplicationExitRequested { get; set; }
 		Action FormActivated { get; set; }
 		Action FormMinimized { get; set; }

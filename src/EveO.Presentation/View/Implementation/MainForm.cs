@@ -561,6 +561,16 @@ namespace EveOPreview.View
 			}
 		}
 
+		public void ShowConfigurationWarning(string details)
+		{
+			MessageBox.Show(
+				"A configuração (EVE-O-Preview.json) foi ajustada ao abrir:"
+				+ Environment.NewLine + Environment.NewLine + details
+				+ Environment.NewLine + Environment.NewLine
+				+ "Os valores fora da faixa foram corrigidos. O arquivo é regravado ao salvar.",
+				"EVE-O Preview", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+		}
+
 		public void RefreshZoomSettings()
 		{
 			bool enableControls = this.EnableThumbnailZoom;
