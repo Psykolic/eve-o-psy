@@ -23,3 +23,6 @@ __pycache__/
 
 # artefatos de build/publish do gate
 dist/
+
+# benchmarks
+BenchmarkDotNet.Artifacts/

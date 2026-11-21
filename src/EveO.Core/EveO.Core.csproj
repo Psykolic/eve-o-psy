@@ -32,5 +32,8 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>EveO.Presentation</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>EveO.Benchmarks</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>
