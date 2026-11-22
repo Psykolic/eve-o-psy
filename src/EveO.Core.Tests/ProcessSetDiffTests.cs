@@ -30,6 +30,37 @@ namespace EveO.Tests.Services
 		}
 
 		[Fact]
+		public void Test_Update_CallbackProvaProcessoMorto_RemoveNoPrimeiroCiclo()
+		{
+			var diff = new ProcessSetDiff();
+			diff.Update(new[] { Entry(1) });
+
+			// ProcessMonitor devolve false quando o processo saiu (ou a janela ficou obsoleta):
+			// a histerese de 3 ciclos nao deve segurar a thumbnail na tela (issue #150).
+			var removal = diff.Update(Array.Empty<ProcessSetEntry>(), _ => false).Removed;
+
+			removal.Should().ContainSingle();
+			removal[0].Handle.Should().Be(new IntPtr(1));
+			removal[0].Misses.Should().Be(1);
+			diff.Known.Should().BeEmpty();
+		}
+
+		[Fact]
+		public void Test_Update_CallbackMantemHandleAlemDoLimite()
+		{
+			var diff = new ProcessSetDiff();
+			diff.Update(new[] { Entry(1) });
+
+			for (int i = 0; i < 5; i++)
+			{
+				// Handle sumiu, mas o processo continua vivo (travado, minimizado, login).
+				diff.Update(Array.Empty<ProcessSetEntry>(), _ => true).Removed.Should().BeEmpty();
+			}
+
+			diff.Known.Should().ContainSingle(x => x.Handle == new IntPtr(1));
+		}
+
+		[Fact]
 		public void Test_Update_HandleMissingThreeCycles_RemovesExactlyOnce()
 		{
 			var diff = new ProcessSetDiff();

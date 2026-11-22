@@ -358,6 +358,32 @@ namespace EveOPreview.Services
 		}
 
 		/// <summary>
+		/// Reaplica o texto da label nas views vivas. A label vem da configuração
+		/// (customizada por cliente) ou do nome; editar no diálogo precisa refletir
+		/// na hora, sem esperar o próximo ciclo de refresh (issue #151).
+		/// </summary>
+		public void RefreshOverlayLabels()
+		{
+			this.EnsureThumbnailViewsThread(nameof(RefreshOverlayLabels));
+
+			foreach (IThumbnailView view in this._thumbnailViews.Values)
+			{
+				if (!view.IsDisposed)
+				{
+					view.SetOverlayLabel();
+				}
+			}
+
+			foreach (IThumbnailView view in this._spotlightViews.Values)
+			{
+				if (!view.IsDisposed)
+				{
+					view.SetOverlayLabel();
+				}
+			}
+		}
+
+		/// <summary>
 		/// Libera as hotkeys globais dos grupos (inclusive minimizar todos, que compartilha
 		/// a lista). Usado enquanto o diálogo de edição captura teclas.
 		/// </summary>
@@ -866,6 +892,11 @@ namespace EveOPreview.Services
 			// despachar, então a varredura roda no thread atual.
 			SynchronizationContext uiContext = SynchronizationContext.Current;
 
+			// O usuário pediu para sair: as janelas saem da tela agora, mesmo que o drain
+			// abaixo ainda leve alguns segundos. Sem isso a thumbnail fica visível durante
+			// todo o encerramento (issue #150).
+			await RunOnThreadAsync(uiContext, this.HideAllViews).ConfigureAwait(false);
+
 			this._thumbnailUpdateTimer.Stop();
 			this._windowEventSource.Stop();
 
@@ -898,6 +929,30 @@ namespace EveOPreview.Services
 				if (drained)
 				{
 					lifetimeCancellation?.Dispose();
+				}
+			}
+		}
+
+		/// <summary>
+		/// Esconde thumbnails e spotlights sem fechá-los. Usado no início do encerramento:
+		/// fechar de verdade depende do drain, mas a tela não pode ficar com as janelas
+		/// enquanto isso (issue #150).
+		/// </summary>
+		private void HideAllViews()
+		{
+			foreach (IThumbnailView view in this._thumbnailViews.Values)
+			{
+				if (!view.IsDisposed)
+				{
+					view.Hide();
+				}
+			}
+
+			foreach (IThumbnailView view in this._spotlightViews.Values)
+			{
+				if (!view.IsDisposed)
+				{
+					view.Hide();
 				}
 			}
 		}

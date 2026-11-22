@@ -31,6 +31,11 @@ namespace EveOPreview.Configuration
 		Dictionary<string, Size> PerClientThumbnailSize { get; set; }
 		Dictionary<string, bool> CycleGroupExclusions { get; set; }
 
+		/// <summary>Label customizada por cliente; vazio usa os 8 primeiros caracteres do nome.</summary>
+		Dictionary<string, string> PerClientLabel { get; set; }
+		string GetClientLabel(string currentClient);
+		void SetClientLabel(string currentClient, string label);
+
 		bool MinimizeToTray { get; set; }
 		int ThumbnailRefreshPeriod { get; set; }
 		bool EventDrivenRefresh { get; set; }

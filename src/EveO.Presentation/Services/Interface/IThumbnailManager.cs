@@ -35,6 +35,12 @@ namespace EveOPreview.Services
 		void RefreshCycleGroupHotkeys();
 
 		/// <summary>
+		/// Reaplica o texto da label (customizada ou derivada do nome) nas thumbnails e
+		/// nos spotlights vivos, sem esperar o próximo ciclo de refresh.
+		/// </summary>
+		void RefreshOverlayLabels();
+
+		/// <summary>
 		/// Libera as hotkeys globais dos grupos enquanto uma janela está capturando teclas.
 		/// Sem isso, pressionar uma tecla já registrada dispara a ciclagem no meio da edição.
 		/// </summary>

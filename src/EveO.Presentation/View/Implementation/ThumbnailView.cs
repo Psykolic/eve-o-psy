@@ -126,7 +126,7 @@ namespace EveOPreview.View
 			set
 			{
 				this.Text = value;
-				this._overlay.SetOverlayLabel(value.Replace("EVE - ", "").Replace("EVE Frontier - ", "*"));
+				this._overlay.SetOverlayLabel(OverlayLabel.Resolve(value, this._config?.GetClientLabel(value)));
 				this._overlay.SetPropertiesOverlayLabel(this.GetOverlayLabelFont(), _config.OverlayLabelColor, _config.OverlayLabelAnchor);
 				SetDefaultBorderColor();
 				SetPreventPreviews();
@@ -346,6 +346,7 @@ namespace EveOPreview.View
 		}
 		public void SetOverlayLabel()
 		{
+			this._overlay.SetOverlayLabel(OverlayLabel.Resolve(this.Title, this._config.GetClientLabel(this.Title)));
 		}
 		public void SetCycleGroupIndicator(bool displayCycleGroup, ZoomAnchor anchor)
 		{

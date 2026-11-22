@@ -122,8 +122,9 @@ namespace EveOPreview.Services
 		/// </summary>
 		/// <param name="observedProcesses">Janelas com MainWindowHandle válido neste ciclo.</param>
 		/// <param name="shouldKeepHandle">
-		/// Verificação opcional de que o handle/processo ainda existe. Se retornar true,
-		/// a remoção é adiada mesmo depois do limite de misses.
+		/// Verificação opcional de que o handle/processo ainda existe. <c>true</c> adia a
+		/// remoção mesmo depois do limite de misses; <c>false</c> é prova de que a janela
+		/// ficou obsoleta (processo encerrado) e remove no mesmo ciclo.
 		/// </param>
 		public ProcessSetDiffResult Update(
 			IEnumerable<ProcessSetEntry> observedProcesses,
@@ -176,8 +177,11 @@ namespace EveOPreview.Services
 				KnownProcess knownProcess = this._knownProcesses[handle];
 				knownProcess.Misses++;
 
-				bool keepHandle = shouldKeepHandle != null && shouldKeepHandle(handle);
-				if (knownProcess.Misses < this._removalMissThreshold || keepHandle)
+				// A histerese existe para a ausência transitória do handle (cliente travado,
+				// minimizado, tela de login). Quando o callback prova que o processo saiu, não
+				// há o que esperar: a thumbnail ficaria na tela por até 3 ciclos (issue #150).
+				bool? keepHandle = shouldKeepHandle?.Invoke(handle);
+				if (keepHandle == true || (keepHandle == null && knownProcess.Misses < this._removalMissThreshold))
 				{
 					continue;
 				}
