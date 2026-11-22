@@ -80,8 +80,22 @@ Há **dois hooks**:
 O hook de sistema existe desde 2026-11-22: até então só o de objeto, e por isso alt-tab e
 minimizar **não** geravam refresh (medido: `eventos=0` em 1 h 39 de jogo).
 
-Comprovado em execução: 3 alt-tabs fizeram `eventos` ir de 1 para 6, com `gdi` estável em 89 e
-`cpu_pct` em 0,0–0,1%.
+### Comprovação em execução (2026-11-22, 8 clientes)
+
+Teste em três fases, separadas por pausas, em jogo real:
+
+| Fase | Ação | Δ eventos | Leitura |
+|---|---|---|---|
+| A | 3× minimizar/restaurar (fixed window) | **+6** | 3 `MINIMIZESTART` + 3 `MINIMIZEEND` |
+| B | alt-tab entre clientes | +3 a +7 por 30 s | `SYSTEM_FOREGROUND` |
+| C | 5 ciclagens pela hotkey | **+61** | cada ativação emite uma rajada (~12) |
+| — | pausa após as fases | **0** | silêncio sem atividade |
+
+Durante tudo: `gdi` **89 constante**, `cpu_pct` pico **0,2%** (idle 0,04%), `refresh_ms` 4–10 ms,
+máximo de 25 eventos por janela de 30 s (~0,8/s) contra o teto do throttle de 100 ms (10/s).
+
+Nota: ciclar pela hotkey chama o refresh direto (não pelo sinal), mas **ativa** janelas — e isso
+gera `FOREGROUND`. Foi o que produziu a rajada da fase C.
 
 ### Pré-requisito de teste
 
