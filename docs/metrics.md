@@ -61,17 +61,27 @@ calcular diferença e devolve "indisponível" na primeira.
 O sinal de mudança de cliente vem de `SetWinEventHook(EVENT_OBJECT_CREATE..EVENT_OBJECT_NAMECHANGE)`.
 Isso é mais estreito do que "usuário mexeu no jogo":
 
+Há **dois hooks**:
+
+| Hook | Faixa | Cobre |
+|---|---|---|
+| objeto | `0x8000..0x800C` | `CREATE`, `DESTROY`, `SHOW`, `HIDE`, `NAMECHANGE` |
+| sistema | `0x0003..0x0017` | `FOREGROUND` (foco), `MINIMIZESTART`, `MINIMIZEEND` |
+
 | Ação | Dispara o sinal? |
 |---|---|
-| Abrir ou fechar um cliente | ✅ `CREATE` / `DESTROY` |
-| Minimizar ou restaurar | ✅ `HIDE` / `SHOW` |
-| Título da janela muda | ✅ `NAMECHANGE` |
-| **Alt-tab / trocar o foco** | ❌ é `EVENT_SYSTEM_FOREGROUND` (0x0003), fora do range |
-| Ciclar clientes pela hotkey (`F11`) | ❌ o `CycleNextClient` chama o refresh direto, sem passar pelo sinal |
+| Abrir ou fechar um cliente | ✅ `OBJECT_CREATE` / `OBJECT_DESTROY` |
+| Minimizar ou restaurar | ✅ `SYSTEM_MINIMIZESTART` / `SYSTEM_MINIMIZEEND` |
+| Título da janela muda | ✅ `OBJECT_NAMECHANGE` |
+| **Alt-tab / trocar o foco** | ✅ `SYSTEM_FOREGROUND` |
+| Ciclar clientes pela hotkey | ❌ o `CycleNextClient` chama o refresh direto (não passa pelo sinal) |
 | Pular gate, dockar, abrir inventário | ❌ é conteúdo dentro da mesma janela |
 
-Consequência prática: o destaque de cliente ativo depois de um **alt-tab** só atualiza na próxima
-reconciliação (até 5 s). Ao ciclar pela hotkey é imediato.
+O hook de sistema existe desde 2026-11-22: até então só o de objeto, e por isso alt-tab e
+minimizar **não** geravam refresh (medido: `eventos=0` em 1 h 39 de jogo).
+
+Comprovado em execução: 3 alt-tabs fizeram `eventos` ir de 1 para 6, com `gdi` estável em 89 e
+`cpu_pct` em 0,0–0,1%.
 
 ### Pré-requisito de teste
 

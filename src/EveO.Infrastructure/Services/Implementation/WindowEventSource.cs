@@ -25,6 +25,12 @@ namespace EveOPreview.Services.Implementation
 		private const uint EVENT_OBJECT_SHOW = 0x8002;
 		private const uint EVENT_OBJECT_HIDE = 0x8003;
 		private const uint EVENT_OBJECT_NAMECHANGE = 0x800C;
+
+		// Faixa de sistema: foco e minimizar/restaurar. Fica fora de OBJECT_CREATE..NAMECHANGE,
+		// então precisa de um segundo hook — sem ele o app não reage a trocar de cliente.
+		private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+		private const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016;
+		private const uint EVENT_SYSTEM_MINIMIZEEND = 0x0017;
 		private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
 		private const int OBJID_WINDOW = 0;
 		private const uint WM_QUIT = 0x0012;
@@ -49,6 +55,8 @@ namespace EveOPreview.Services.Implementation
 		private Thread _thread;
 		private uint _threadId;
 		private IntPtr _hook;
+		private IntPtr _systemHook;
+		private WinEventProc _systemCallback;
 		private volatile bool _isRunning;
 
 		public WindowEventSource(IClientChangeSignal signal, IThumbnailConfiguration configuration)
@@ -138,6 +146,16 @@ namespace EveOPreview.Services.Implementation
 				0,
 				WindowEventSource.WINEVENT_OUTOFCONTEXT);
 
+			this._systemCallback = this.OnSystemEvent;
+			this._systemHook = WindowEventSource.SetWinEventHook(
+				WindowEventSource.EVENT_SYSTEM_FOREGROUND,
+				WindowEventSource.EVENT_SYSTEM_MINIMIZEEND,
+				IntPtr.Zero,
+				this._systemCallback,
+				0,
+				0,
+				WindowEventSource.WINEVENT_OUTOFCONTEXT);
+
 			try
 			{
 				while (WindowEventSource.GetMessage(out MSG message, IntPtr.Zero, 0, 0) > 0)
@@ -154,9 +172,33 @@ namespace EveOPreview.Services.Implementation
 					this._hook = IntPtr.Zero;
 				}
 
+				if (this._systemHook != IntPtr.Zero)
+				{
+					WindowEventSource.UnhookWinEvent(this._systemHook);
+					this._systemHook = IntPtr.Zero;
+				}
+
 				this._callback = null;
 				this._threadId = 0;
 			}
+		}
+
+		private void OnSystemEvent(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
+		{
+			// Foco, minimizar e restaurar: é o que o usuário faz ao trocar de cliente.
+			if (eventType != WindowEventSource.EVENT_SYSTEM_FOREGROUND
+				&& eventType != WindowEventSource.EVENT_SYSTEM_MINIMIZESTART
+				&& eventType != WindowEventSource.EVENT_SYSTEM_MINIMIZEEND)
+			{
+				return;
+			}
+
+			if (hwnd == IntPtr.Zero || !this.IsMonitoredWindow(hwnd))
+			{
+				return;
+			}
+
+			this._signal.Publish();
 		}
 
 		private void OnWinEvent(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
