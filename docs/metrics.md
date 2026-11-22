@@ -33,6 +33,29 @@ ts=2026-11-21T21:30:00.0000000Z refresh_ms=12.40 refreshes=1842 thumbnails=7 gdi
 O mesmo liga/desliga está em `IAppConfig.MetricsEnabled` / `MetricsSnapshotPath`, para quem
 preferir configurar por código.
 
+## Medição real (2026-11-22, 7 clientes abertos)
+
+Primeira execução com `EVE_METRICS=1` no PC do mantenedor:
+
+```
+ts=...03:08:15Z refresh_ms=347.95 refreshes=1  thumbnails=7 gdi=79 dwm=7 cpu_pct=-1.0
+ts=...03:08:45Z refresh_ms=8.95   refreshes=7  thumbnails=7 gdi=83 dwm=7 cpu_pct=0.1
+ts=...03:09:15Z refresh_ms=8.05   refreshes=13 thumbnails=7 gdi=83 dwm=7 cpu_pct=0.0
+```
+
+| Observação | Leitura |
+|---|---|
+| intervalo entre linhas | **30,1 s** (o writer está correto) |
+| primeiro ciclo | **348 ms** — custo de subida (7 registros no DWM) |
+| ciclos seguintes | **8–9 ms** |
+| `refreshes` | +6 a cada 30 s = **reconciliação de 5 s** (ADR-006); sem refresh extra com clientes parados |
+| `thumbnails` / `dwm` | **7 / 7** — casa com as 7 janelas abertas |
+| `gdi` | 79 → 83 → **83** (estável; +4 na subida) |
+| `cpu_pct` | **0,1% / 0,0%** (a 8.2.2 media 0,52%) |
+
+`cpu_pct=-1.0` na primeira linha é esperado: o amostrador precisa de duas leituras para
+calcular diferença e devolve "indisponível" na primeira.
+
 ## Consumir ao vivo
 
 Qualquer `MeterListener` escuta o meter `EveO.Preview` — inclusive ferramentas de fora:
