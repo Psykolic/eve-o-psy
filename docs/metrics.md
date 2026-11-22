@@ -56,6 +56,29 @@ ts=...03:09:15Z refresh_ms=8.05   refreshes=13 thumbnails=7 gdi=83 dwm=7 cpu_pct
 `cpu_pct=-1.0` na primeira linha é esperado: o amostrador precisa de duas leituras para
 calcular diferença e devolve "indisponível" na primeira.
 
+## O que gera evento (e o que não gera)
+
+O sinal de mudança de cliente vem de `SetWinEventHook(EVENT_OBJECT_CREATE..EVENT_OBJECT_NAMECHANGE)`.
+Isso é mais estreito do que "usuário mexeu no jogo":
+
+| Ação | Dispara o sinal? |
+|---|---|
+| Abrir ou fechar um cliente | ✅ `CREATE` / `DESTROY` |
+| Minimizar ou restaurar | ✅ `HIDE` / `SHOW` |
+| Título da janela muda | ✅ `NAMECHANGE` |
+| **Alt-tab / trocar o foco** | ❌ é `EVENT_SYSTEM_FOREGROUND` (0x0003), fora do range |
+| Ciclar clientes pela hotkey (`F11`) | ❌ o `CycleNextClient` chama o refresh direto, sem passar pelo sinal |
+| Pular gate, dockar, abrir inventário | ❌ é conteúdo dentro da mesma janela |
+
+Consequência prática: o destaque de cliente ativo depois de um **alt-tab** só atualiza na próxima
+reconciliação (até 5 s). Ao ciclar pela hotkey é imediato.
+
+### Pré-requisito de teste
+
+O cliente EVE em **tela cheia exclusiva não minimiza** — logo, não gera `HIDE`/`SHOW` e o caminho
+por evento não pode ser exercitado assim. Para testar minimize/restore, colocar o cliente em modo
+**janela (fixed window)**. Sem isso, `eventos=0` é o resultado correto, não um bug.
+
 ## Consumir ao vivo
 
 Qualquer `MeterListener` escuta o meter `EveO.Preview` — inclusive ferramentas de fora:
