@@ -17,6 +17,8 @@ env:
   DOTNET_NOLOGO: "1"
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  # setup-dotnet precisa de um destino gravavel (o runner nao roda como root)
+  DOTNET_INSTALL_DIR: ${{ github.workspace }}/.dotnet
 
 jobs:
   linux:
