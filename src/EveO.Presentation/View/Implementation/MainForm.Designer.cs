@@ -1564,7 +1564,7 @@ namespace EveOPreview.View
 			AutoScaleDimensions = new SizeF(7F, 15F);
 			AutoScaleMode = AutoScaleMode.Font;
 			BackColor = SystemColors.Control;
-			ClientSize = new Size(455, 251);
+			ClientSize = new Size(455, 400);
 			Controls.Add(ContentTabControl);
 			FormBorderStyle = FormBorderStyle.FixedSingle;
 			Icon = (Icon)resources.GetObject("$this.Icon");

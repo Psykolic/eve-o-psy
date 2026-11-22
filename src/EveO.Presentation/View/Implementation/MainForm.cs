@@ -13,7 +13,6 @@ namespace EveOPreview.View
 {
 	public partial class MainForm : Form, IMainFormView
 	{
-		private TabPage GroupsTabPage;
 		private System.Windows.Forms.TreeView GroupsTree;
 
 		public Action OpenConfigurationFileRequested { get; set; }
@@ -113,9 +112,13 @@ namespace EveOPreview.View
 			return "grupo " + grupo.Number + " — " + avancar + "  ⟲ " + voltar;
 		}
 
-		private void BuildCycleGroupsTab()
+		private void BuildCycleGroupsPanel()
 		{
-			this.GroupsTabPage = new TabPage("Grupos");
+			this._groupsPanel = new Panel
+			{
+				Size = new Size(327, 243),
+				BackColor = SystemColors.Control
+			};
 
 			this.GroupsTree = new System.Windows.Forms.TreeView
 			{
@@ -184,21 +187,150 @@ namespace EveOPreview.View
 			this.GroupsTree.DoubleClick += delegate { this.RaiseGroupAction(this.EditCycleGroupRequested); };
 
 			// Ordem de docking: Fill primeiro, bordas depois (o Fill consome o que sobra).
-			this.GroupsTabPage.Controls.Add(this.GroupsTree);
-			this.GroupsTabPage.Controls.Add(rodape);
-			this.GroupsTabPage.Controls.Add(dica);
-
-			// Depois de "Active Clients": é o assunto vizinho. No fim da lista, a oitava aba
-			// não caberia na coluna vertical e o TabControl abriria uma segunda coluna.
-			this.ContentTabControl.TabPages.Insert(5, this.GroupsTabPage);
-
-			// Altura calculada: 8 abas precisam caber na altura disponível, senão o
-			// controle cria coluna extra (era o defeito visto na tela).
-			int abas = this.ContentTabControl.TabPages.Count;
-			int altura = Math.Max(24, (this.ContentTabControl.Height - 8) / Math.Max(1, abas));
-			this.ContentTabControl.ItemSize = new Size(altura, 120);
+			this._groupsPanel.Controls.Add(this.GroupsTree);
+			this._groupsPanel.Controls.Add(rodape);
+			this._groupsPanel.Controls.Add(dica);
 
 			this.SetCycleGroups(null);
+		}
+
+		/// <summary>
+		/// Monta a navegação em blocos (Layout 3 sem tema): grade 4×2 no topo e um host
+		/// único para as telas, no lugar do TabControl lateral.
+		/// </summary>
+		private void BuildLayout()
+		{
+			this.SuspendLayout();
+
+			this.ContentTabControl.Visible = false;
+			this.ClientSize = new Size(455, 388);
+
+			this._contentHost = new Panel
+			{
+				Dock = DockStyle.Fill,
+				Padding = new Padding(4)
+			};
+
+			TableLayoutPanel nav = new TableLayoutPanel
+			{
+				Dock = DockStyle.Top,
+				Height = 128,
+				ColumnCount = 4,
+				RowCount = 2,
+				Padding = new Padding(6),
+				BackColor = SystemColors.Control
+			};
+			for (int coluna = 0; coluna < 4; coluna++)
+			{
+				nav.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+			}
+			for (int linha = 0; linha < 2; linha++)
+			{
+				nav.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+			}
+
+			var telas = new List<(string Titulo, string Glifo, Panel Conteudo)>
+			{
+				("General", "\uE713", (Panel)this.ContentTabControl.TabPages[0].Controls[0]),
+				("Thumbnail", "\uE890", (Panel)this.ContentTabControl.TabPages[1].Controls[0]),
+				("Zoom", "\uE71E", (Panel)this.ContentTabControl.TabPages[2].Controls[0]),
+				("Overlay", "\uE7C3", (Panel)this.ContentTabControl.TabPages[3].Controls[0]),
+				("Active Clients", "\uE716", (Panel)this.ContentTabControl.TabPages[4].Controls[0]),
+				("Grupos", "\uE8FD", this._groupsPanel),
+				("Spotlight", "\uE706", (Panel)this.ContentTabControl.TabPages[5].Controls[0]),
+				("About", "\uE946", (Panel)this.ContentTabControl.TabPages[6].Controls[0])
+			};
+
+			for (int indice = 0; indice < telas.Count; indice++)
+			{
+				(string titulo, string glifo, Panel conteudo) = telas[indice];
+
+				conteudo.Visible = false;
+				conteudo.Location = new Point(4, 4);
+				this._contentHost.Controls.Add(conteudo);
+				this._layoutPages.Add(conteudo);
+
+				System.Windows.Forms.Button botao = this.CreateNavButton(titulo, glifo);
+				int destino = indice;
+				botao.Click += delegate { this.ShowLayoutPage(destino); };
+				nav.Controls.Add(botao, indice % 4, indice / 4);
+				this._layoutButtons.Add(botao);
+			}
+
+			// Ordem de docking: o host (Fill) entra primeiro e a navegação depois; o
+			// WinForms processa o docking do fim da coleção para o começo.
+			this.Controls.Add(this._contentHost);
+			this.Controls.Add(nav);
+
+			this._contentHost.Resize += delegate { this.CenterLayoutPages(); };
+
+			this.ShowLayoutPage(0);
+
+			this.ResumeLayout();
+		}
+
+		private System.Windows.Forms.Button CreateNavButton(string titulo, string glifo)
+		{
+			System.Windows.Forms.Button botao = new System.Windows.Forms.Button
+			{
+				Dock = DockStyle.Fill,
+				Margin = new Padding(3),
+				FlatStyle = FlatStyle.Flat,
+				Text = titulo,
+				TextAlign = ContentAlignment.BottomCenter,
+				Image = this.CreateGlyphImage(glifo),
+				ImageAlign = ContentAlignment.TopCenter,
+				TextImageRelation = TextImageRelation.ImageAboveText,
+				Font = this._navFont,
+				BackColor = SystemColors.Control,
+				UseVisualStyleBackColor = false
+			};
+			botao.FlatAppearance.BorderColor = SystemColors.ControlDark;
+
+			return botao;
+		}
+
+		private Image CreateGlyphImage(string glifo)
+		{
+			Bitmap bitmap = new Bitmap(20, 20);
+			using (Graphics graphics = Graphics.FromImage(bitmap))
+			using (Font fonte = new Font("Segoe MDL2 Assets", 11f, FontStyle.Regular, GraphicsUnit.Point))
+			using (SolidBrush pincel = new SolidBrush(SystemColors.ControlText))
+			{
+				Size tamanho = TextRenderer.MeasureText(glifo, fonte);
+				graphics.DrawString(glifo, fonte, pincel, (20 - tamanho.Width) / 2f, (20 - tamanho.Height) / 2f);
+			}
+
+			return bitmap;
+		}
+
+		private void ShowLayoutPage(int indice)
+		{
+			for (int i = 0; i < this._layoutPages.Count; i++)
+			{
+				bool selecionada = i == indice;
+				this._layoutPages[i].Visible = selecionada;
+
+				System.Windows.Forms.Button botao = this._layoutButtons[i];
+				botao.BackColor = selecionada ? SystemColors.Window : SystemColors.Control;
+				botao.Font = selecionada ? this._navFontSelected : this._navFont;
+			}
+
+			this.CenterLayoutPages();
+		}
+
+		private void CenterLayoutPages()
+		{
+			int largura = Math.Max(320, this._contentHost.ClientSize.Width - 8);
+
+			foreach (Panel pagina in this._layoutPages)
+			{
+				if (pagina.Visible)
+				{
+					pagina.Location = new Point(4, 4);
+					pagina.Width = largura;
+				}
+			}
 		}
 		#region Private fields
 		private readonly ApplicationContext _context;
@@ -218,6 +350,12 @@ namespace EveOPreview.View
 		private readonly Dictionary<string, string> _clientLabels;
 		private bool _suppressClientLabelEvents;
 		private bool _thumbnailListTextClick;
+		private readonly List<Panel> _layoutPages;
+		private readonly List<System.Windows.Forms.Button> _layoutButtons;
+		private readonly Font _navFont;
+		private readonly Font _navFontSelected;
+		private Panel _groupsPanel;
+		private Panel _contentHost;
 		#endregion
 
 		#region Private constants
@@ -236,6 +374,10 @@ namespace EveOPreview.View
 			this._maximumSize = new Size(20, 20);
 			this._spotlightClients = new HashSet<string>();
 			this._clientLabels = new Dictionary<string, string>();
+			this._layoutPages = new List<Panel>();
+			this._layoutButtons = new List<System.Windows.Forms.Button>();
+			this._navFont = new Font(this.Font.FontFamily, 8.25f, FontStyle.Regular, GraphicsUnit.Point);
+			this._navFontSelected = new Font(this.Font.FontFamily, 8.25f, FontStyle.Bold, GraphicsUnit.Point);
 
 			InitializeComponent();
 
@@ -244,13 +386,13 @@ namespace EveOPreview.View
 			this.InitZoomAnchorMap();
 			this.InitOverlayLabelMap();
 			this.InitCycleGroupIndicatorMap();
-			this.InitFormSize();
 
 			this.AnimationStyleCombo.DataSource = Enum.GetValues(typeof(AnimationStyle));
 
-			// Aba nova fica em código (não no Designer gerado): menos risco de quebrar
-			// o arquivo grande e o layout é simples — lista + botão.
-			this.BuildCycleGroupsTab();
+			// A aba Grupos e construida em codigo (nao no Designer gerado) e a navegacao
+			// em blocos substitui o TabControl: as telas viram paineis num host unico.
+			this.BuildCycleGroupsPanel();
+			this.BuildLayout();
 		}
 
 		public bool MinimizeToTray
@@ -844,46 +986,11 @@ namespace EveOPreview.View
 		public Action DocumentationLinkActivated { get; set; }
 
 		#region UI events
+		// A navegação em blocos (fase 2) substituiu o TabControl lateral; o desenho das
+		// abas ficou no histórico. O controle segue no Designer apenas como fonte das
+		// telas (cada página carrega um painel, reparentado em BuildLayout).
 		private void ContentTabControl_DrawItem(object sender, DrawItemEventArgs e)
 		{
-			TabControl control = (TabControl)sender;
-			TabPage page = control.TabPages[e.Index];
-			Rectangle bounds = control.GetTabRect(e.Index);
-			Graphics graphics = e.Graphics;
-			bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-
-			// Fundo chapado: o bevel 3D do Windows some, e a aba selecionada vira
-			// superficie de conteudo (mesma cor da area a direita).
-			using (SolidBrush background = new SolidBrush(selected ? SystemColors.Window : SystemColors.Control))
-			{
-				graphics.FillRectangle(background, e.Bounds);
-			}
-
-			// Barra de acento na borda esquerda, como um menu lateral.
-			if (selected)
-			{
-				using (SolidBrush accent = new SolidBrush(SystemColors.Highlight))
-				{
-					graphics.FillRectangle(accent, new Rectangle(bounds.Left + 1, bounds.Top + 4, 3, Math.Max(1, bounds.Height - 8)));
-				}
-			}
-
-			// Separador fino entre as abas, no lugar da moldura 3D.
-			using (Pen separator = new Pen(SystemColors.ControlDark))
-			{
-				graphics.DrawLine(separator, bounds.Left + 6, bounds.Bottom - 1, bounds.Right - 6, bounds.Bottom - 1);
-			}
-
-			using (Font font = new Font(this.Font.FontFamily, this.Font.Size * 1.25f, FontStyle.Bold, GraphicsUnit.Pixel))
-			{
-				TextRenderer.DrawText(
-					graphics,
-					page.Text,
-					font,
-					bounds,
-					selected ? SystemColors.ControlText : SystemColors.GrayText,
-					TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-			}
 		}
 
 		private void OptionChanged_Handler(object sender, EventArgs e)
@@ -1182,20 +1289,10 @@ namespace EveOPreview.View
 
 		private void InitFormSize()
 		{
-			const int BUFFER_PIXEL_AMOUNT = 8;
-			// resize form height based on tabbed control item height
-			var tabControl = (System.Windows.Forms.TabControl)this.Controls.Find("ContentTabControl", false).First();
-			if (tabControl != null)
-			{
-				var furnitureSize = this.Height - tabControl.Height;
-				var calculatedHeight = (tabControl.ItemSize.Width * tabControl.Controls.Count) + furnitureSize + BUFFER_PIXEL_AMOUNT;
-				if (this.Height < calculatedHeight)
-				{
-					this.Height = calculatedHeight;
-				}
-			}
+			// O tamanho agora e fixo (455x400) e definido em BuildLayout: nao ha mais
+			// coluna de abas para dimensionar.
+			this.ClientSize = new Size(455, 400);
 		}
-
 		private void btnLabelFont_Click(object sender, EventArgs e)
 		{
 			FontDialog fontSelector = new FontDialog();
