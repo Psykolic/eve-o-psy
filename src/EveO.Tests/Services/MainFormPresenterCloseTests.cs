@@ -1,6 +1,7 @@
 using System.Reflection;
 using EveOPreview;
 using EveOPreview.Configuration;
+using EveOPreview.Services;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.Presenters;
 using EveOPreview.View;
@@ -51,7 +52,8 @@ public sealed class MainFormPresenterCloseTests
             mediator.Object,
             new Mock<IThumbnailConfiguration>(MockBehavior.Loose).Object,
             storage.Object,
-            new Mock<IAppConfig>(MockBehavior.Loose).Object);
+            new Mock<IAppConfig>(MockBehavior.Loose).Object,
+            new Mock<IThumbnailManager>(MockBehavior.Loose).Object);
 
         var firstPass = new ViewCloseRequest();
         InvokeClose(presenter, firstPass);

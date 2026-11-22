@@ -86,5 +86,20 @@ namespace EveOPreview.View
 
 		/// <summary>Preenche a aba "Grupos" com o que está configurado.</summary>
 		void SetCycleGroups(IReadOnlyList<CycleGroupSummary> groups);
+
+		/// <summary>Usuário quer editar o grupo (duplo clique ou botão Editar).</summary>
+		Action<int> EditCycleGroupRequested { get; set; }
+
+		/// <summary>Usuário quer limpar o grupo.</summary>
+		Action<int> ClearCycleGroupRequested { get; set; }
+
+		/// <summary>Usuário quer configurar um grupo vazio.</summary>
+		Action CreateCycleGroupRequested { get; set; }
+
+		/// <summary>Abre o diálogo de edição; devolve null quando cancelado.</summary>
+		CycleGroupEditModel EditCycleGroup(CycleGroupEditModel model);
+
+		/// <summary>Mensagem curta (ex.: atalho repetido).</summary>
+		void ShowGroupMessage(string message);
 	}
 }
