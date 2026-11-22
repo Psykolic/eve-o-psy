@@ -125,7 +125,16 @@ namespace EveOPreview.View
 			this.GroupsTabPage.Controls.Add(rodape);
 			this.GroupsTabPage.Controls.Add(dica);
 
-			this.ContentTabControl.TabPages.Add(this.GroupsTabPage);
+			// Depois de "Active Clients": é o assunto vizinho. No fim da lista, a oitava aba
+			// não caberia na coluna vertical e o TabControl abriria uma segunda coluna.
+			this.ContentTabControl.TabPages.Insert(5, this.GroupsTabPage);
+
+			// Altura calculada: 8 abas precisam caber na altura disponível, senão o
+			// controle cria coluna extra (era o defeito visto na tela).
+			int abas = this.ContentTabControl.TabPages.Count;
+			int altura = Math.Max(24, (this.ContentTabControl.Height - 8) / Math.Max(1, abas));
+			this.ContentTabControl.ItemSize = new Size(altura, 120);
+
 			this.SetCycleGroups(null);
 		}
 		#region Private fields
