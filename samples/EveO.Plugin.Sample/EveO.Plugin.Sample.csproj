@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>EveO.Plugin.Sample</AssemblyName>
+    <RootNamespace>EveOPreview.Plugin.Sample</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/EveO.Core/EveO.Core.csproj" />
+  </ItemGroup>
+
+</Project>
