@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -58,7 +59,9 @@ namespace EveOPreview.Configuration.Implementation
 			}
 			catch (JsonException exception)
 			{
-				return result.Add(filename, "JSON inválido (" + exception.Message + "); padrões mantidos");
+				string copia = ConfigurationStorage.Quarantine(filename);
+				string onde = copia == null ? string.Empty : " — original guardado em " + Path.GetFileName(copia);
+				return result.Add(filename, "JSON inválido (" + exception.Message + "); padrões mantidos" + onde);
 			}
 
 			string previous = JsonConvert.SerializeObject(this._thumbnailConfiguration);
@@ -93,18 +96,65 @@ namespace EveOPreview.Configuration.Implementation
 			return validation;
 		}
 
+		/// <summary>
+		/// Grava de forma atômica: escreve num temporário e troca de uma vez, guardando a
+		/// versão anterior em <c>.bak</c>. Sem isso, uma interrupção no meio do save deixa
+		/// o JSON pela metade — e a configuração do usuário se perde.
+		/// </summary>
 		public void Save()
 		{
 			string rawData = JsonConvert.SerializeObject(this._thumbnailConfiguration, Formatting.Indented);
 			string filename = this.GetConfigFileName();
+			string temporario = filename + ".tmp";
 
 			try
 			{
-				File.WriteAllText(filename, rawData);
+				File.WriteAllText(temporario, rawData);
+
+				if (File.Exists(filename))
+				{
+					// Replace troca e guarda o anterior em .bak, na mesma operação.
+					File.Replace(temporario, filename, filename + ".bak", true);
+				}
+				else
+				{
+					File.Move(temporario, filename);
+				}
 			}
 			catch (IOException)
 			{
 				// Ignore error if for some reason the updated config cannot be written down
+				try
+				{
+					if (File.Exists(temporario))
+					{
+						File.Delete(temporario);
+					}
+				}
+				catch (IOException)
+				{
+				}
+			}
+			catch (UnauthorizedAccessException)
+			{
+			}
+		}
+
+		/// <summary>
+		/// Copia o arquivo com problema para <c>nome.corrupt-AAAAMMDD-HHMMSS</c>, para o
+		/// próximo save não apagar a única evidência do que o usuário tinha.
+		/// </summary>
+		private static string Quarantine(string filename)
+		{
+			try
+			{
+				string copia = filename + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+				File.Copy(filename, copia, true);
+				return copia;
+			}
+			catch (Exception)
+			{
+				return null;
 			}
 		}
 
