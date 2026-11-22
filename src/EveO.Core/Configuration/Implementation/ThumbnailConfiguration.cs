@@ -509,6 +509,37 @@ namespace EveOPreview.Configuration.Implementation
 			return layout;
 		}
 
+		public IReadOnlyCollection<string> GetKnownClients()
+		{
+			var nomes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+
+			ThumbnailConfiguration.AddNames(nomes, this.FlatLayout?.Keys);
+			ThumbnailConfiguration.AddNames(nomes, this.ClientLayout?.Keys);
+			ThumbnailConfiguration.AddNames(nomes, this.CycleGroup1ClientsOrder?.Keys);
+			ThumbnailConfiguration.AddNames(nomes, this.CycleGroup2ClientsOrder?.Keys);
+			ThumbnailConfiguration.AddNames(nomes, this.CycleGroup3ClientsOrder?.Keys);
+			ThumbnailConfiguration.AddNames(nomes, this.CycleGroup4ClientsOrder?.Keys);
+			ThumbnailConfiguration.AddNames(nomes, this.CycleGroup5ClientsOrder?.Keys);
+
+			return nomes.ToList();
+		}
+
+		private static void AddNames(ISet<string> nomes, IEnumerable<string> chaves)
+		{
+			if (chaves == null)
+			{
+				return;
+			}
+
+			foreach (string chave in chaves)
+			{
+				if (!string.IsNullOrWhiteSpace(chave))
+				{
+					nomes.Add(chave.Trim());
+				}
+			}
+		}
+
 		public void SetClientLayout(string currentClient, ClientLayout layout)
 		{
 			this.ClientLayout[currentClient] = layout;
