@@ -131,6 +131,14 @@ teria de cobrir os **55** controles interativos.
 Ou seja: **só o Layout 1 cabe no tamanho atual**. Layouts 2 e 3 exigem decidir entre crescer a
 janela ou aceitar rolagem — decisão que precisa vir antes de mexer no tema.
 
+## Estado da implementação
+
+| Fase | Estado |
+|---|---|
+| 1 — reorganização (rótulos, alinhamentos, barra chapada) | ✅ 8.3.7 (#159) |
+| 2 — navegação em blocos, sem tema | ✅ 8.3.8 (#160) — janela 455×388 |
+| 3 — tema escuro | pendente (cosmético) |
+
 ## Relacionado
 
 - `docs/roadmap.md` — diretriz feature-complete (2026-11-22).
