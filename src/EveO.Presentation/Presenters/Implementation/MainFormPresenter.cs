@@ -55,6 +55,7 @@ namespace EveOPreview.Presenters
 			this.View.ApplicationSettingsChanged = this.SaveApplicationSettings;
 			this.View.ThumbnailsSizeChanged = this.UpdateThumbnailsSize;
 			this.View.ThumbnailStateChanged = this.UpdateThumbnailState;
+			this.View.ClientLabelChanged = this.UpdateClientLabel;
 			this.View.SpotlightClientsChanged = this.UpdateSpotlightClients;
 			this.View.SpotlightClientSelected = this.UpdateSpotlightRegionInfo;
 			this.View.ClearSpotlightRegionRequested = this.ClearSpotlightRegion;
@@ -176,6 +177,7 @@ namespace EveOPreview.Presenters
 			this.View.ThumbnailOpacity = this._configuration.ThumbnailOpacity;
 			this.View.SpotlightOpacity = this._configuration.SpotlightOpacity;
 			this.View.SetSpotlightClients(this._configuration.SpotlightClients ?? new List<string>());
+			this.View.SetClientLabels(this._configuration.PerClientLabel);
 			this.View.SetSpotlightHotkeyInfo(this.GetSpotlightHotkeyInfo());
 
 			this.View.EnableClientLayoutTracking = this._configuration.EnableClientLayoutTracking;
@@ -481,6 +483,18 @@ namespace EveOPreview.Presenters
 			{
 				this._configuration.ToggleThumbnail(title, description.IsDisabled);
 			}
+
+			await this._mediator.Send(new SaveConfiguration());
+		}
+
+		/// <summary>
+		/// Label editada na aba de clientes: grava (normalizada em 8 caracteres) e reaplica
+		/// nas views na hora, sem esperar o próximo ciclo de refresh (issue #151).
+		/// </summary>
+		private async void UpdateClientLabel(string title, string label)
+		{
+			this._configuration.SetClientLabel(title, label);
+			this._thumbnailManager?.RefreshOverlayLabels();
 
 			await this._mediator.Send(new SaveConfiguration());
 		}

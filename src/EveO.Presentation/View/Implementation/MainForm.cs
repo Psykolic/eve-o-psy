@@ -215,6 +215,8 @@ namespace EveOPreview.View
 		private readonly HashSet<string> _spotlightClients;
 		private Rectangle _selectedSpotlightRegion;
 		private Size _lastThumbnailSize;
+		private readonly Dictionary<string, string> _clientLabels;
+		private bool _suppressClientLabelEvents;
 		#endregion
 
 		#region Private constants
@@ -232,6 +234,7 @@ namespace EveOPreview.View
 			this._minimumSize = new Size(20, 20);
 			this._maximumSize = new Size(20, 20);
 			this._spotlightClients = new HashSet<string>();
+			this._clientLabels = new Dictionary<string, string>();
 
 			InitializeComponent();
 
@@ -659,6 +662,51 @@ namespace EveOPreview.View
 			this.ThumbnailsList.EndUpdate();
 		}
 
+		/// <summary>
+		/// Labels customizadas por cliente. O campo abaixo da lista edita a selecionada;
+		/// vazio significa "usar os 8 primeiros caracteres do nome" (issue #151).
+		/// </summary>
+		public void SetClientLabels(IReadOnlyDictionary<string, string> labels)
+		{
+			this._clientLabels.Clear();
+			if (labels != null)
+			{
+				foreach (KeyValuePair<string, string> pair in labels)
+				{
+					this._clientLabels[pair.Key] = pair.Value;
+				}
+			}
+
+			this.UpdateClientLabelEditor();
+		}
+
+		private void UpdateClientLabelEditor()
+		{
+			this._suppressClientLabelEvents = true;
+			try
+			{
+				if (!(this.ThumbnailsList.SelectedItem is IThumbnailDescription selectedItem))
+				{
+					this.ClientLabelTextBox.Text = string.Empty;
+					this.ClientLabelTextBox.PlaceholderText = string.Empty;
+					this.ClientLabelTextBox.Enabled = false;
+					return;
+				}
+
+				this.ClientLabelTextBox.Enabled = true;
+				this.ClientLabelTextBox.Text = this._clientLabels.TryGetValue(selectedItem.Title, out string label)
+					? label
+					: string.Empty;
+
+				// O placeholder mostra o que aparece quando o campo fica vazio.
+				this.ClientLabelTextBox.PlaceholderText = OverlayLabel.FromTitle(selectedItem.Title);
+			}
+			finally
+			{
+				this._suppressClientLabelEvents = false;
+			}
+		}
+
 		public IList<string> SpotlightClients => new List<string>(this._spotlightClients);
 
 		public string SelectedSpotlightClient => this.SpotlightClientsList.SelectedItem as string;
@@ -782,6 +830,9 @@ namespace EveOPreview.View
 		public Action ThumbnailsSizeChanged { get; set; }
 
 		public Action<string> ThumbnailStateChanged { get; set; }
+
+		/// <summary>Usuário editou a label do cliente selecionado (título, texto).</summary>
+		public Action<string, string> ClientLabelChanged { get; set; }
 
 		public Action SpotlightClientsChanged { get; set; }
 
@@ -925,6 +976,36 @@ namespace EveOPreview.View
 			selectedItem.IsDisabled = (e.NewValue == CheckState.Checked);
 
 			this.ThumbnailStateChanged?.Invoke(selectedItem.Title);
+		}
+
+		private void ThumbnailsList_SelectedIndexChanged_Handler(object sender, EventArgs e)
+		{
+			this.UpdateClientLabelEditor();
+		}
+
+		private void ClientLabelTextBox_TextChanged_Handler(object sender, EventArgs e)
+		{
+			if (this._suppressClientLabelEvents)
+			{
+				return;
+			}
+
+			if (!(this.ThumbnailsList.SelectedItem is IThumbnailDescription selectedItem))
+			{
+				return;
+			}
+
+			string label = this.ClientLabelTextBox.Text;
+			if (string.IsNullOrEmpty(label))
+			{
+				this._clientLabels.Remove(selectedItem.Title);
+			}
+			else
+			{
+				this._clientLabels[selectedItem.Title] = label;
+			}
+
+			this.ClientLabelChanged?.Invoke(selectedItem.Title, label);
 		}
 
 		private void SpotlightClientsList_ItemCheck_Handler(object sender, ItemCheckEventArgs e)

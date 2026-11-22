@@ -61,6 +61,9 @@ namespace EveOPreview.View
 
 		void AddThumbnails(IList<IThumbnailDescription> thumbnails);
 		void RemoveThumbnails(IList<IThumbnailDescription> thumbnails);
+
+		/// <summary>Preenche o editor de label da aba de clientes.</summary>
+		void SetClientLabels(IReadOnlyDictionary<string, string> labels);
 		void SetSpotlightClients(IEnumerable<string> clients);
 		void SetSpotlightHotkeyInfo(string hotkeyInfo);
 		void SetSpotlightRegionInfo(string title, Rectangle region);
@@ -76,6 +79,10 @@ namespace EveOPreview.View
 		Action ApplicationSettingsChanged { get; set; }
 		Action ThumbnailsSizeChanged { get; set; }
 		Action<string> ThumbnailStateChanged { get; set; }
+
+		/// <summary>Usuário editou a label do cliente selecionado (título, texto).</summary>
+		Action<string, string> ClientLabelChanged { get; set; }
+
 		Action SpotlightClientsChanged { get; set; }
 		Action<string> SpotlightClientSelected { get; set; }
 		Action<string> ClearSpotlightRegionRequested { get; set; }

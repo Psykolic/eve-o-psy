@@ -131,6 +131,8 @@ namespace EveOPreview.View
 			ShowThumbnailOverlaysCheckBox = new CheckBox();
 			ShowThumbnailFramesCheckBox = new CheckBox();
 			ThumbnailsList = new CheckedListBox();
+			ClientLabelHintLabel = new Label();
+			ClientLabelTextBox = new TextBox();
 			SpotlightClientsList = new CheckedListBox();
 			VersionLabel = new Label();
 			DocumentationLink = new LinkLabel();
@@ -1289,6 +1291,8 @@ namespace EveOPreview.View
 			// ClientsPanel
 			// 
 			ClientsPanel.BorderStyle = BorderStyle.FixedSingle;
+			ClientsPanel.Controls.Add(ClientLabelTextBox);
+			ClientsPanel.Controls.Add(ClientLabelHintLabel);
 			ClientsPanel.Controls.Add(ThumbnailsList);
 			ClientsPanel.Controls.Add(ThumbnailsListLabel);
 			ClientsPanel.Dock = DockStyle.Fill;
@@ -1308,10 +1312,31 @@ namespace EveOPreview.View
 			ThumbnailsList.Location = new Point(4, 32);
 			ThumbnailsList.Margin = new Padding(4);
 			ThumbnailsList.Name = "ThumbnailsList";
-			ThumbnailsList.Size = new Size(317, 190);
+			ThumbnailsList.Size = new Size(317, 158);
 			ThumbnailsList.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 			ThumbnailsList.TabIndex = 34;
 			ThumbnailsList.ItemCheck += ThumbnailsList_ItemCheck_Handler;
+			ThumbnailsList.SelectedIndexChanged += ThumbnailsList_SelectedIndexChanged_Handler;
+			// 
+			// ClientLabelHintLabel
+			// 
+			ClientLabelHintLabel.AutoSize = true;
+			ClientLabelHintLabel.Location = new Point(9, 194);
+			ClientLabelHintLabel.Margin = new Padding(4, 0, 4, 0);
+			ClientLabelHintLabel.Name = "ClientLabelHintLabel";
+			ClientLabelHintLabel.Size = new Size(190, 15);
+			ClientLabelHintLabel.TabIndex = 35;
+			ClientLabelHintLabel.Text = "Label (8 chars, empty = client name)";
+			// 
+			// ClientLabelTextBox
+			// 
+			ClientLabelTextBox.Location = new Point(9, 210);
+			ClientLabelTextBox.Margin = new Padding(4);
+			ClientLabelTextBox.MaxLength = 8;
+			ClientLabelTextBox.Name = "ClientLabelTextBox";
+			ClientLabelTextBox.Size = new Size(150, 23);
+			ClientLabelTextBox.TabIndex = 36;
+			ClientLabelTextBox.TextChanged += ClientLabelTextBox_TextChanged_Handler;
 			// 
 			// ThumbnailsListLabel
 			// 
@@ -1624,6 +1649,8 @@ namespace EveOPreview.View
 		private CheckBox ShowThumbnailOverlaysCheckBox;
 		private CheckBox ShowThumbnailFramesCheckBox;
 		private CheckedListBox ThumbnailsList;
+		private Label ClientLabelHintLabel;
+		private TextBox ClientLabelTextBox;
 		private CheckedListBox SpotlightClientsList;
 		private Label SpotlightHotkeyLabel;
 		private LinkLabel DocumentationLink;

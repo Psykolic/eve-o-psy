@@ -95,6 +95,7 @@ namespace EveOPreview.Configuration.Implementation
 			this.FlatLayout = new Dictionary<string, Point>();
 			this.ClientLayout = new Dictionary<string, ClientLayout>();
 			this.ClientHotkey = new Dictionary<string, string>();
+			this.PerClientLabel = new Dictionary<string, string>();
 			this.MinimizeAllClientsHotkeys = new List<string> { "Control+F22" };
 			this.DisableThumbnail = new Dictionary<string, bool>();
 			this.PriorityClients = new List<string>();
@@ -237,6 +238,9 @@ namespace EveOPreview.Configuration.Implementation
 
 		[JsonProperty("PerClientThumbnailSize")]
 		public Dictionary<string, Size> PerClientThumbnailSize { get; set; }
+
+		[JsonProperty("PerClientLabel")]
+		public Dictionary<string, string> PerClientLabel { get; set; }
 
 		[JsonProperty("PerClientZoomAnchor")]
 		public Dictionary<string, ZoomAnchor> PerClientZoomAnchor{ get; set; }
@@ -561,6 +565,37 @@ namespace EveOPreview.Configuration.Implementation
 			this.ClientHotkey[currentClient] = hotkey.Value;
 		}
 
+		/// <summary>Label customizada do cliente; vazio significa "usar o nome".</summary>
+		public string GetClientLabel(string currentClient)
+		{
+			if (string.IsNullOrEmpty(currentClient) || this.PerClientLabel == null)
+			{
+				return string.Empty;
+			}
+
+			return this.PerClientLabel.TryGetValue(currentClient, out string label) ? label : string.Empty;
+		}
+
+		/// <summary>Grava a label ja normalizada; texto em branco remove a entrada.</summary>
+		public void SetClientLabel(string currentClient, string label)
+		{
+			if (string.IsNullOrEmpty(currentClient))
+			{
+				return;
+			}
+
+			this.PerClientLabel = this.PerClientLabel ?? new Dictionary<string, string>();
+
+			string sanitized = OverlayLabel.Sanitize(label);
+			if (sanitized.Length == 0)
+			{
+				this.PerClientLabel.Remove(currentClient);
+				return;
+			}
+
+			this.PerClientLabel[currentClient] = sanitized;
+		}
+
 		public bool IsPriorityClient(string currentClient)
 		{
 			return this.PriorityClients.Contains(currentClient);
@@ -609,6 +644,20 @@ namespace EveOPreview.Configuration.Implementation
 			this.PerClientSpotlightSize = this.PerClientSpotlightSize ?? new Dictionary<string, Size>();
 			this.SpotlightLayout = this.SpotlightLayout ?? new Dictionary<string, Point>();
 			this.PerClientSpotlightRegion = this.PerClientSpotlightRegion ?? new Dictionary<string, Rectangle>();
+
+			// Label: arquivo editado a mao nao fura o limite de 8 nem deixa chave vazia.
+			this.PerClientLabel = this.PerClientLabel ?? new Dictionary<string, string>();
+			foreach (string client in this.PerClientLabel.Keys.ToList())
+			{
+				string label = OverlayLabel.Sanitize(this.PerClientLabel[client]);
+				if (label.Length == 0)
+				{
+					this.PerClientLabel.Remove(client);
+					continue;
+				}
+
+				this.PerClientLabel[client] = label;
+			}
 
 			foreach (string client in this.PerClientSpotlightRegion.Keys.ToList())
 			{
