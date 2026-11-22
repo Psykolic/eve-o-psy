@@ -3,7 +3,6 @@ using System.Threading;
 using System.Windows.Forms;
 using EveOPreview.Configuration;
 using EveOPreview.Presenters;
-using EveOPreview.Plugins;
 using EveOPreview.Services;
 using EveOPreview.View;
 using MediatR;
@@ -41,12 +40,7 @@ namespace EveOPreview
 
 			Application.SetCompatibleTextRenderingDefault(false);
 
-			// Plugins sao opcionais: sem a pasta "Plugins", nada acontece. E nenhuma
-			// falha de plugin pode impedir o app de abrir -- o host ja engole tudo.
-			using (PluginHost plugins = PluginHost.Start(PluginHost.DefaultDirectory))
-			{
-				controller.Run<MainFormPresenter>();
-			}
+			controller.Run<MainFormPresenter>();
 		}
 
 		private static Mutex GetInstanceToken()

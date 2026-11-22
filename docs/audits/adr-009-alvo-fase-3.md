@@ -112,9 +112,9 @@ A trilha de **extensibilidade (3.3, 3.4, 3.6) também foi encerrada**: o projeto
 contribuição de terceiros, e sem esse público não há para quem entregar plugin SDK, `CONTRIBUTING.md`,
 template `dotnet new` ou plugin de comunidade. Event sourcing cai pelo mesmo motivo.
 
-- **3.3** parou no incremento 1: contrato `IPlugin`/`IPluginContext`, `PluginLoader` com contexto
-  isolado e `PluginHost` ligado ao app; nada disso tem API de app e nada é usado sem a pasta
-  `Plugins\` ao lado do exe.
+- **3.3** chegou a ter o incremento 1 no `main` (contrato `IPlugin`/`IPluginContext`, `PluginLoader`
+  com contexto isolado, `PluginHost`) e foi **removido** — sem abertura a terceiros não há autor
+  para plugin. O código segue no commit `d8a3d2d`; aqui fica só a decisão.
 - **3.4** e **3.6** não começaram e não começam.
 
 **Regra para o futuro:** a Fase 3 não volta para o roadmap. Reabrir qualquer um destes itens exige
