@@ -148,22 +148,7 @@ namespace EveOPreview.Services
 
 			this._hideThumbnailsDelay = this._configuration.HideThumbnailsDelay;
 
-			RegisterCycleClientHotkey(this._configuration.CycleGroup1ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup1ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup1BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup1ClientsOrder);
-
-			RegisterCycleClientHotkey(this._configuration.CycleGroup2ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup2ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup2BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup2ClientsOrder);
-
-			RegisterCycleClientHotkey(this._configuration.CycleGroup3ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup3ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup3BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup3ClientsOrder);
-
-			RegisterCycleClientHotkey(this._configuration.CycleGroup4ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup4ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup4BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup4ClientsOrder);
-
-			RegisterCycleClientHotkey(this._configuration.CycleGroup5ForwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), true, this._configuration.CycleGroup5ClientsOrder);
-			RegisterCycleClientHotkey(this._configuration.CycleGroup5BackwardHotkeys?.Select(x => HotkeyConverter.ToKeys(x)), false, this._configuration.CycleGroup5ClientsOrder);
-
-			RegisterMinimizeAllClientsHotkey(this._configuration.MinimizeAllClientsHotkeys?.Select(x => HotkeyConverter.ToKeys(x)));
+			this.RegisterCycleGroupHotkeys();
 
 			RegisterSpotlightHotkey(this._configuration.ToggleSpotlightHotkeys?.Select(x => HotkeyConverter.ToKeys(x)));
 		}
@@ -327,6 +312,45 @@ namespace EveOPreview.Services
 
 			// unable to select anything !
 			return;
+		}
+
+		/// <summary>
+		/// Registra as hotkeys dos cinco grupos e a de minimizar todos, a partir da
+		/// configuração atual.
+		/// </summary>
+		private void RegisterCycleGroupHotkeys()
+		{
+			var grupos = new[]
+			{
+				(Forward: this._configuration.CycleGroup1ForwardHotkeys, Backward: this._configuration.CycleGroup1BackwardHotkeys, Order: this._configuration.CycleGroup1ClientsOrder),
+				(Forward: this._configuration.CycleGroup2ForwardHotkeys, Backward: this._configuration.CycleGroup2BackwardHotkeys, Order: this._configuration.CycleGroup2ClientsOrder),
+				(Forward: this._configuration.CycleGroup3ForwardHotkeys, Backward: this._configuration.CycleGroup3BackwardHotkeys, Order: this._configuration.CycleGroup3ClientsOrder),
+				(Forward: this._configuration.CycleGroup4ForwardHotkeys, Backward: this._configuration.CycleGroup4BackwardHotkeys, Order: this._configuration.CycleGroup4ClientsOrder),
+				(Forward: this._configuration.CycleGroup5ForwardHotkeys, Backward: this._configuration.CycleGroup5BackwardHotkeys, Order: this._configuration.CycleGroup5ClientsOrder),
+			};
+
+			foreach (var grupo in grupos)
+			{
+				this.RegisterCycleClientHotkey(grupo.Forward?.Select(x => HotkeyConverter.ToKeys(x)), true, grupo.Order);
+				this.RegisterCycleClientHotkey(grupo.Backward?.Select(x => HotkeyConverter.ToKeys(x)), false, grupo.Order);
+			}
+
+			this.RegisterMinimizeAllClientsHotkey(this._configuration.MinimizeAllClientsHotkeys?.Select(x => HotkeyConverter.ToKeys(x)));
+		}
+
+		/// <summary>
+		/// Aplica as hotkeys dos grupos sem reiniciar: libera as atuais e registra de novo.
+		/// Sem isso, editar atalho só passava a valer depois de fechar o aplicativo.
+		/// </summary>
+		public void RefreshCycleGroupHotkeys()
+		{
+			foreach (HotkeyHandler handler in this._cycleClientHotkeyHandlers)
+			{
+				handler.Unregister();
+			}
+
+			this._cycleClientHotkeyHandlers.Clear();
+			this.RegisterCycleGroupHotkeys();
 		}
 
 		public void RegisterCycleClientHotkey(IEnumerable<Keys> keys, bool isForwards, Dictionary<string, int> cycleOrder)

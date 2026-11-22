@@ -23,6 +23,9 @@ namespace EveOPreview.Mediator.Handlers.Configuration
 			// Hot-reload ZoomFactor: update zoom factor on all visible thumbnails
 			this._manager.RefreshZoomFactor();
 
+			// Hot-reload dos atalhos de grupo (editar grupo/atalho na tela).
+			this._manager.RefreshCycleGroupHotkeys();
+
 			return Task.CompletedTask;
 		}
 	}

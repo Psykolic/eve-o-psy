@@ -21,12 +21,14 @@ public sealed class ConfigurationChangedTests
         var manager = new Mock<IThumbnailManager>(MockBehavior.Strict);
         manager.Setup(m => m.RefreshTimerInterval());
         manager.Setup(m => m.RefreshZoomFactor());
+        manager.Setup(m => m.RefreshCycleGroupHotkeys());
 
         var handler = new ConfigurationChangedHandler(manager.Object);
         await handler.Handle(new ConfigurationChangedNotification(), CancellationToken.None);
 
         manager.Verify(m => m.RefreshTimerInterval(), Times.Once);
         manager.Verify(m => m.RefreshZoomFactor(), Times.Once);
+        manager.Verify(m => m.RefreshCycleGroupHotkeys(), Times.Once);
     }
 
     [Fact]
