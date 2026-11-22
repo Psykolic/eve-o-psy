@@ -14,6 +14,7 @@ Forgejo — aqui é o único lugar onde o texto sobreviveu.
 | [8.3.3](8.3.3.md) | Grupos de ciclo configuráveis na tela (editor, teclas, ordem) e importação do app anterior |
 | [8.3.4](8.3.4.md) | Refresh imediato ao trocar de cliente (hook de foco/minimizar) e configuração à prova de perda |
 | [8.3.5](8.3.5.md) | Label de até 8 caracteres por cliente e thumbnail que sai da tela quando o cliente fecha |
+| [8.3.6](8.3.6.md) | Clique no nome do cliente só seleciona; a caixinha é que marca "não mostrar" |
 
 A partir da 8.3.1 a fonte da verdade é a release no Forgejo (`scripts/release.sh` publica o corpo).
 Estas notas são histórico, não são republicadas.
