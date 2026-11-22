@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Diagnostics.Metrics;
 
@@ -27,6 +28,8 @@ namespace EveOPreview.Diagnostics
 		private static int _activeThumbnails;
 		private static double _lastRefreshMs;
 		private static long _refreshTotal;
+		private static long _timerRefreshes;
+		private static long _eventRefreshes;
 
 		static EveOMetrics()
 		{
@@ -49,13 +52,28 @@ namespace EveOPreview.Diagnostics
 		/// <summary>CPU do processo em porcentagem.</summary>
 		public static Func<double> CpuUsageProvider { get; set; }
 
-		public static void RecordRefresh(double durationMs, int activeThumbnails)
+		/// <summary>
+		/// Registra um ciclo de refresh. <paramref name="evento"/> distingue o refresh
+		/// disparado por mudança de janela do tick de reconciliação: sem isso a métrica
+		/// só enxergava a reconciliação e parecia que nada acontecia durante o jogo.
+		/// </summary>
+		public static void RecordRefresh(double durationMs, int activeThumbnails, bool evento = false)
 		{
 			_lastRefreshMs = durationMs;
 			_activeThumbnails = activeThumbnails;
 			_refreshTotal++;
 
-			RefreshDuration.Record(durationMs);
+			if (evento)
+			{
+				_eventRefreshes++;
+			}
+			else
+			{
+				_timerRefreshes++;
+			}
+
+			RefreshDuration.Record(durationMs,
+				new KeyValuePair<string, object>("motivo", evento ? "evento" : "reconciliacao"));
 			RefreshCount.Add(1);
 		}
 
@@ -81,7 +99,9 @@ namespace EveOPreview.Diagnostics
 			_activeThumbnails,
 			ReadLong(GdiHandleProvider),
 			ReadLong(DwmHandleProvider),
-			ReadDouble(CpuUsageProvider));
+			ReadDouble(CpuUsageProvider),
+			_timerRefreshes,
+			_eventRefreshes);
 
 		private static long ReadLong(Func<long> provider)
 		{

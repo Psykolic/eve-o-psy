@@ -837,8 +837,15 @@ namespace EveOPreview.Services
 		private void RefreshOnClientChange()
 		{
 			this.EnsureThumbnailViewsThread(nameof(RefreshOnClientChange));
+
+			long startTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 			this.UpdateThumbnailsList();
 			this.RefreshThumbnails();
+			double durationMs = (System.Diagnostics.Stopwatch.GetTimestamp() - startTicks)
+				* 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+			// Caminho quente no jogo (troca de tela/janela): medido separado do timer.
+			EveOMetrics.RecordRefresh(durationMs, this._thumbnailViews.Count, evento: true);
 
 			// Um cliente que fechou precisa de mais varreduras para ser removido
 			// (ProcessSetDiff exige N varreduras consecutivas) e o próximo evento pode

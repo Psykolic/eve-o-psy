@@ -11,6 +11,7 @@ namespace EveO.Core.Tests.Diagnostics;
 /// Item 1.5: métricas publicadas em System.Diagnostics.Metrics e um retrato local.
 /// Roda no Linux porque a instrumentação mora no Core.
 /// </summary>
+[Collection("eveo-metrics")]
 public sealed class EveOMetricsTests
 {
     [Fact]
