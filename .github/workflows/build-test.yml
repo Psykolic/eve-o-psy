@@ -17,8 +17,6 @@ env:
   DOTNET_NOLOGO: "1"
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
-  # setup-dotnet precisa de um destino gravavel (o runner nao roda como root)
-  DOTNET_INSTALL_DIR: ${{ github.workspace }}/.dotnet
 
 jobs:
   linux:
@@ -27,10 +25,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+      - name: SDK
+        run: dotnet --version
 
       - name: Restore
         run: dotnet restore src/EVE-O-Preview.sln
@@ -47,10 +43,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+      - name: SDK
+        run: dotnet --version
 
       - name: Build
         run: dotnet build src/EVE-O-Preview.sln -c Release
@@ -67,10 +61,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+      - name: SDK
+        run: dotnet --version
 
       - name: Build
         run: dotnet build src/EVE-O-Preview.sln -c Release
@@ -89,10 +81,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+      - name: SDK
+        run: dotnet --version
 
       - name: Publish single-file
         run: >
