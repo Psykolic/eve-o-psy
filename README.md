@@ -71,7 +71,8 @@ test layout.
 | [docs/thumbnail-sizing.md](docs/thumbnail-sizing.md) | size policy, aspect ratio, per-client sizes |
 | [docs/architecture](docs/architecture) | architecture notes and decisions |
 | [docs/audits](docs/audits) | ADRs, performance and stability analyses |
-| [docs/releases](docs/releases) | release notes |
+| [CHANGELOG.md](CHANGELOG.md) | what changed in each version |
+| [docs/releases](docs/releases) | release notes, with measurements and decisions |
 
 ## License
 
