@@ -35,6 +35,7 @@ namespace EveOPreview.Configuration
 		Dictionary<string, string> PerClientLabel { get; set; }
 		string GetClientLabel(string currentClient);
 		void SetClientLabel(string currentClient, string label);
+		void RenameClientLabel(string oldTitle, string newTitle);
 
 		bool MinimizeToTray { get; set; }
 		int ThumbnailRefreshPeriod { get; set; }

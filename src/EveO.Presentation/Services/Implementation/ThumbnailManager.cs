@@ -1091,6 +1091,7 @@ namespace EveOPreview.Services
 				{
 					viewsRemoved.Add(view.Title);
 					this._configuration.RenameSpotlightClient(view.Title, process.Title);
+					this._configuration.RenameClientLabel(view.Title, process.Title);
 					if (this._spotlightViews.TryGetValue(process.Handle, out IThumbnailView spotlightView))
 					{
 						spotlightView.Title = process.Title;

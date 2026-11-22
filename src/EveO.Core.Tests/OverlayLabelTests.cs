@@ -63,6 +63,18 @@ namespace EveO.Tests.Configuration
 		}
 
 		[Fact]
+		public void Configuracao_MoveALabelQuandoOClienteTrocaDeNome()
+		{
+			var config = new ThumbnailConfiguration();
+			config.SetClientLabel("EVE - Old Toon", "OLD");
+
+			config.RenameClientLabel("EVE - Old Toon", "EVE - New Toon");
+
+			config.GetClientLabel("EVE - Old Toon").Should().BeEmpty();
+			config.GetClientLabel("EVE - New Toon").Should().Be("OLD");
+		}
+
+		[Fact]
 		public void Configuracao_CorrigeArquivoEditadoAMaoAoCarregar()
 		{
 			var config = new ThumbnailConfiguration();
