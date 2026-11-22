@@ -27,6 +27,12 @@ namespace EveOPreview.Services
 		/// </summary>
 		void RefreshZoomFactor();
 
+		/// <summary>
+		/// Re-registra as hotkeys dos grupos de ciclo a partir da configuração atual.
+		/// Aplicado sem reiniciar — editar atalho não deve exigir fechar o aplicativo.
+		/// </summary>
+		void RefreshCycleGroupHotkeys();
+
 		IThumbnailView GetClientByTitle(string title);
 		IThumbnailView GetClientByPointer(System.IntPtr ptr);
 		IThumbnailView GetActiveClient();
