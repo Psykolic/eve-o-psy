@@ -36,7 +36,6 @@ namespace EveOPreview.View
 			ToolStripMenuItem ExitMenuItem;
 			ToolStripMenuItem TitleMenuItem;
 			ToolStripSeparator SeparatorMenuItem;
-			TabControl ContentTabControl;
 			TabPage GeneralTabPage;
 			Panel GeneralSettingsPanel;
 			Label label4;
@@ -1659,6 +1658,7 @@ namespace EveOPreview.View
 		private Panel PreventPreviewColorButton;
 		private Label label5;
 		private Panel panel2;
+		private TabControl ContentTabControl;
 		private RadioButton CycleGroupIndicatorNWRadioButton;
 		private RadioButton CycleGroupIndicatorNRadioButton;
 		private RadioButton CycleGroupIndicatorNERadioButton;

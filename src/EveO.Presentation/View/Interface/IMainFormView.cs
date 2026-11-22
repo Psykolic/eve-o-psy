@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using EveOPreview.Configuration;
 using System.Drawing;
 
 namespace EveOPreview.View
@@ -79,5 +80,11 @@ namespace EveOPreview.View
 		Action<string> SpotlightClientSelected { get; set; }
 		Action<string> ClearSpotlightRegionRequested { get; set; }
 		Action DocumentationLinkActivated { get; set; }
+
+		/// <summary>Usuário pediu para abrir o arquivo de configuração no editor.</summary>
+		Action OpenConfigurationFileRequested { get; set; }
+
+		/// <summary>Preenche a aba "Grupos" com o que está configurado.</summary>
+		void SetCycleGroups(IReadOnlyList<CycleGroupSummary> groups);
 	}
 }

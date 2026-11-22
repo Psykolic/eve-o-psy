@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -28,12 +29,15 @@ namespace EveOPreview.Presenters
 		private bool _allowClose;
 		#endregion
 
-		public MainFormPresenter(IApplicationController controller, IMainFormView view, IMediator mediator, IThumbnailConfiguration configuration, IConfigurationStorage configurationStorage)
+		private readonly IAppConfig _appConfig;
+
+		public MainFormPresenter(IApplicationController controller, IMainFormView view, IMediator mediator, IThumbnailConfiguration configuration, IConfigurationStorage configurationStorage, IAppConfig appConfig)
 			: base(controller, view)
 		{
 			this._mediator = mediator;
 			this._configuration = configuration;
 			this._configurationStorage = configurationStorage;
+			this._appConfig = appConfig;
 
 			this._descriptionsCache = new Dictionary<string, IThumbnailDescription>();
 
@@ -53,6 +57,7 @@ namespace EveOPreview.Presenters
 			this.View.ClearSpotlightRegionRequested = this.ClearSpotlightRegion;
 			this.View.DocumentationLinkActivated = this.OpenDocumentationLink;
 			this.View.ApplicationExitRequested = this.ExitApplication;
+			this.View.OpenConfigurationFileRequested = this.OpenConfigurationFile;
 
 			this.View.IconName = this._configuration.IconName;
 		}
@@ -158,6 +163,8 @@ namespace EveOPreview.Presenters
 					OverlayLabelFontConverter.CreateDefault());
 			}
 
+			this.View.SetCycleGroups(CycleGroupSummaryBuilder.Build(this._configuration));
+
 			this.View.MinimizeToTray = this._configuration.MinimizeToTray;
 
 			this.View.ThumbnailOpacity = this._configuration.ThumbnailOpacity;
@@ -200,6 +207,34 @@ namespace EveOPreview.Presenters
 
 
 			this.View.IconName = this._configuration.IconName;
+		}
+
+		/// <summary>
+		/// Abre o EVE-O-Preview.json no editor padrão. Se ainda não existir, abre a pasta —
+		/// assim o usuário vê onde o arquivo vai nascer.
+		/// </summary>
+		private void OpenConfigurationFile()
+		{
+			try
+			{
+				string caminho = this._appConfig?.ConfigFileName;
+
+				if (!string.IsNullOrWhiteSpace(caminho) && File.Exists(caminho))
+				{
+					Process.Start(new ProcessStartInfo(caminho) { UseShellExecute = true });
+					return;
+				}
+
+				string pasta = string.IsNullOrWhiteSpace(caminho) ? null : Path.GetDirectoryName(caminho);
+				if (!string.IsNullOrEmpty(pasta) && Directory.Exists(pasta))
+				{
+					Process.Start(new ProcessStartInfo(pasta) { UseShellExecute = true });
+				}
+			}
+			catch (Exception exception)
+			{
+				AppOperationLog.Record("abrir configuracao falhou: " + exception.GetType().Name);
+			}
 		}
 
 		private async void SaveApplicationSettings()

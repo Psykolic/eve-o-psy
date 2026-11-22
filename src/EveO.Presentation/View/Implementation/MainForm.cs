@@ -13,6 +13,79 @@ namespace EveOPreview.View
 {
 	public partial class MainForm : Form, IMainFormView
 	{
+		private TabPage GroupsTabPage;
+		private System.Windows.Forms.ListView GroupsList;
+
+		public Action OpenConfigurationFileRequested { get; set; }
+
+		/// <summary>
+		/// Mostra os cinco grupos de ciclo (atalhos e clientes na ordem de ciclagem).
+		/// Só leitura: editar continua sendo no arquivo, que o botão abre.
+		/// </summary>
+		public void SetCycleGroups(IReadOnlyList<CycleGroupSummary> groups)
+		{
+			if (this.GroupsList == null)
+			{
+				return;
+			}
+
+			this.GroupsList.BeginUpdate();
+			try
+			{
+				this.GroupsList.Items.Clear();
+
+				foreach (CycleGroupSummary grupo in groups ?? new List<CycleGroupSummary>())
+				{
+					var item = new ListViewItem("grupo " + grupo.Number);
+					item.SubItems.Add(grupo.HotkeyText);
+					item.SubItems.Add(grupo.Clients.Count == 0
+						? "(sem clientes)"
+						: string.Join(", ", grupo.Clients));
+
+					if (grupo.IsEmpty)
+					{
+						item.ForeColor = SystemColors.GrayText;
+					}
+
+					this.GroupsList.Items.Add(item);
+				}
+			}
+			finally
+			{
+				this.GroupsList.EndUpdate();
+			}
+		}
+
+		private void BuildCycleGroupsTab()
+		{
+			this.GroupsTabPage = new TabPage("Grupos");
+
+			this.GroupsList = new System.Windows.Forms.ListView
+			{
+				Dock = DockStyle.Fill,
+				View = System.Windows.Forms.View.Details,
+				FullRowSelect = true,
+				MultiSelect = false,
+				HideSelection = false
+			};
+			this.GroupsList.Columns.Add("Grupo", 70);
+			this.GroupsList.Columns.Add("Atalhos", 330);
+			this.GroupsList.Columns.Add("Clientes", 430);
+
+			var abrirArquivo = new System.Windows.Forms.Button
+			{
+				Text = "Abrir arquivo de configuração…",
+				Dock = DockStyle.Bottom,
+				Height = 34
+			};
+			abrirArquivo.Click += delegate { this.OpenConfigurationFileRequested?.Invoke(); };
+
+			this.GroupsTabPage.Controls.Add(this.GroupsList);
+			this.GroupsTabPage.Controls.Add(abrirArquivo);
+
+			this.ContentTabControl.TabPages.Add(this.GroupsTabPage);
+			this.SetCycleGroups(null);
+		}
 		#region Private fields
 		private readonly ApplicationContext _context;
 		private readonly Dictionary<ViewZoomAnchor, RadioButton> _zoomAnchorMap;
@@ -56,6 +129,10 @@ namespace EveOPreview.View
 			this.InitFormSize();
 
 			this.AnimationStyleCombo.DataSource = Enum.GetValues(typeof(AnimationStyle));
+
+			// Aba nova fica em código (não no Designer gerado): menos risco de quebrar
+			// o arquivo grande e o layout é simples — lista + botão.
+			this.BuildCycleGroupsTab();
 		}
 
 		public bool MinimizeToTray
