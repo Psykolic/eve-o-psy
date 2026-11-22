@@ -137,7 +137,7 @@ janela ou aceitar rolagem — decisão que precisa vir antes de mexer no tema.
 |---|---|
 | 1 — reorganização (rótulos, alinhamentos, barra chapada) | ✅ 8.3.7 (#159) |
 | 2 — navegação em blocos, sem tema | ✅ 8.3.8 (#160) — janela 455×388, **testada e aprovada pelo mantenedor em 2026-11-22** |
-| 3 — tema escuro | pendente (cosmético) |
+| 3 — tema escuro | ✅ 8.3.10 (#168) — azul-marinho/mint, interruptor no General |
 
 ## Relacionado
 
