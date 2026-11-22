@@ -102,6 +102,35 @@ Aceite: alternar claro/escuro sem reiniciar, nenhuma cor ilegível, nenhuma regr
 - Hotkeys, comportamento de refresh, DWM/GDI, spotlight e grupos.
 - O app continua sem funcionalidade nova nesta frente.
 
+## Inventário de controles (medido no `MainForm.Designer.cs`)
+
+| Tipo | Qtde |
+|---|---|
+| `CheckBox` | 16 |
+| `RadioButton` | 27 |
+| `NumericUpDown` | 5 |
+| `TrackBar` | 2 |
+| `CheckedListBox` | 2 |
+| `Button` | 2 |
+| `ComboBox` | 1 |
+| **Total interativo** | **55** |
+| `Label` / `Panel` / `LinkLabel` | 26 / 13 / 1 |
+
+Só o cabeçalho das abas é desenhado à mão hoje (`ContentTabControl_DrawItem`). Um tema escuro
+teria de cobrir os **55** controles interativos.
+
+## Custo de altura por navegação
+
+| Proposta | Navegação | Conteúdo restante (janela atual) | Janela necessária |
+|---|---|---|---|
+| Hoje | lateral (124 px de largura) | 243 px | 455×251 |
+| Layout 1 | lateral (sem mudança) | 243 px | **455×251** |
+| Layout 2 | abas no topo, 2 linhas (~70 px) | ~170 px | ~455×330 |
+| Layout 3 | grade 4×2 (~110 px) + título (~30 px) | ~100 px | ~455×400 |
+
+Ou seja: **só o Layout 1 cabe no tamanho atual**. Layouts 2 e 3 exigem decidir entre crescer a
+janela ou aceitar rolagem — decisão que precisa vir antes de mexer no tema.
+
 ## Relacionado
 
 - `docs/roadmap.md` — diretriz feature-complete (2026-11-22).
