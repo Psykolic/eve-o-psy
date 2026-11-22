@@ -217,6 +217,7 @@ namespace EveOPreview.View
 		private Size _lastThumbnailSize;
 		private readonly Dictionary<string, string> _clientLabels;
 		private bool _suppressClientLabelEvents;
+		private bool _thumbnailListTextClick;
 		#endregion
 
 		#region Private constants
@@ -968,6 +969,15 @@ namespace EveOPreview.View
 
 		private void ThumbnailsList_ItemCheck_Handler(object sender, ItemCheckEventArgs e)
 		{
+			// A lista serve para duas coisas: selecionar o cliente (editar a label) e
+			// marcar "nao mostrar". Clicar no nome so pode selecionar; o estado so muda
+			// quando o clique foi na caixinha (issue #156).
+			if (this._thumbnailListTextClick)
+			{
+				e.NewValue = e.CurrentValue;
+				return;
+			}
+
 			if (!(this.ThumbnailsList.Items[e.Index] is IThumbnailDescription selectedItem))
 			{
 				return;
@@ -976,6 +986,33 @@ namespace EveOPreview.View
 			selectedItem.IsDisabled = (e.NewValue == CheckState.Checked);
 
 			this.ThumbnailStateChanged?.Invoke(selectedItem.Title);
+		}
+
+		private void ThumbnailsList_MouseDown_Handler(object sender, MouseEventArgs e)
+		{
+			this._thumbnailListTextClick = false;
+
+			if (e.Button != MouseButtons.Left)
+			{
+				return;
+			}
+
+			int index = this.ThumbnailsList.IndexFromPoint(e.Location);
+			if (index < 0)
+			{
+				return;
+			}
+
+			Rectangle item = this.ThumbnailsList.GetItemRectangle(index);
+			int checkBoxWidth = this.ThumbnailsList.LogicalToDeviceUnits(20);
+
+			// Clique a esquerda da caixinha: so seleciona.
+			this._thumbnailListTextClick = e.X > item.Left + checkBoxWidth;
+		}
+
+		private void ThumbnailsList_MouseUp_Handler(object sender, MouseEventArgs e)
+		{
+			this._thumbnailListTextClick = false;
 		}
 
 		private void ThumbnailsList_SelectedIndexChanged_Handler(object sender, EventArgs e)
