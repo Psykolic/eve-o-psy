@@ -262,30 +262,43 @@ namespace EveOPreview.Presenters
 		private async void EditCycleGroup(int numero)
 		{
 			CycleGroupEditModel modelo = this.BuildEditModel(numero);
-			CycleGroupEditModel editado = this.View.EditCycleGroup(modelo);
+			CycleGroupEditModel editado;
 
-			if (editado == null)
+			// As teclas dos grupos são hotkeys globais: com o diálogo aberto, pressionar
+			// uma delas ciclava os clientes no meio da edição. Suspender resolve.
+			this._thumbnailManager?.SuspendCycleGroupHotkeys();
+			try
 			{
-				return;
+				editado = this.View.EditCycleGroup(modelo);
+
+				if (editado == null)
+				{
+					return;
+				}
+
+				IReadOnlyList<string> conflitos = CycleGroupEditor.FindHotkeyConflicts(
+					this._configuration, numero,
+					new[] { editado.Forward }.Concat(editado.ExtraForward),
+					new[] { editado.Backward }.Concat(editado.ExtraBackward));
+
+				if (conflitos.Count > 0)
+				{
+					this.View.ShowGroupMessage("Atenção:\n\n" + string.Join("\n", conflitos));
+				}
+
+				CycleGroupEditor.SetGroup(this._configuration, numero,
+					new[] { editado.Forward }.Concat(editado.ExtraForward),
+					new[] { editado.Backward }.Concat(editado.ExtraBackward),
+					editado.SelectedClients);
+
+				await this._mediator.Send(new SaveConfiguration());
+				this.View.SetCycleGroups(CycleGroupSummaryBuilder.Build(this._configuration));
 			}
-
-			IReadOnlyList<string> conflitos = CycleGroupEditor.FindHotkeyConflicts(
-				this._configuration, numero,
-				new[] { editado.Forward }.Concat(editado.ExtraForward),
-				new[] { editado.Backward }.Concat(editado.ExtraBackward));
-
-			if (conflitos.Count > 0)
+			finally
 			{
-				this.View.ShowGroupMessage("Atenção:\n\n" + string.Join("\n", conflitos));
+				// Cancelando ou não, as teclas voltam a valer.
+				this._thumbnailManager?.RefreshCycleGroupHotkeys();
 			}
-
-			CycleGroupEditor.SetGroup(this._configuration, numero,
-				new[] { editado.Forward }.Concat(editado.ExtraForward),
-				new[] { editado.Backward }.Concat(editado.ExtraBackward),
-				editado.SelectedClients);
-
-			await this._mediator.Send(new SaveConfiguration());
-			this.View.SetCycleGroups(CycleGroupSummaryBuilder.Build(this._configuration));
 		}
 
 		private async void ClearCycleGroup(int numero)

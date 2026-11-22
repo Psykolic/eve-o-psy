@@ -34,6 +34,12 @@ namespace EveOPreview.Services
 		/// </summary>
 		void RefreshCycleGroupHotkeys();
 
+		/// <summary>
+		/// Libera as hotkeys globais dos grupos enquanto uma janela está capturando teclas.
+		/// Sem isso, pressionar uma tecla já registrada dispara a ciclagem no meio da edição.
+		/// </summary>
+		void SuspendCycleGroupHotkeys();
+
 		/// <summary>Títulos das thumbnails vivas — os clientes abertos agora.</summary>
 		IReadOnlyList<string> GetClientTitles();
 

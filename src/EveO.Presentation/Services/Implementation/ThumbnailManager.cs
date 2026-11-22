@@ -353,13 +353,22 @@ namespace EveOPreview.Services
 		/// </summary>
 		public void RefreshCycleGroupHotkeys()
 		{
+			this.SuspendCycleGroupHotkeys();
+			this.RegisterCycleGroupHotkeys();
+		}
+
+		/// <summary>
+		/// Libera as hotkeys globais dos grupos (inclusive minimizar todos, que compartilha
+		/// a lista). Usado enquanto o diálogo de edição captura teclas.
+		/// </summary>
+		public void SuspendCycleGroupHotkeys()
+		{
 			foreach (HotkeyHandler handler in this._cycleClientHotkeyHandlers)
 			{
 				handler.Unregister();
 			}
 
 			this._cycleClientHotkeyHandlers.Clear();
-			this.RegisterCycleGroupHotkeys();
 		}
 
 		public void RegisterCycleClientHotkey(IEnumerable<Keys> keys, bool isForwards, Dictionary<string, int> cycleOrder)
