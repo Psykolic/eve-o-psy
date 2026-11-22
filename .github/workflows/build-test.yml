@@ -1,0 +1,62 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eveo-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+
+jobs:
+  linux:
+    name: Linux (build + core tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore src/EVE-O-Preview.sln
+
+      - name: Build (EnableWindowsTargeting)
+        run: dotnet build src/EVE-O-Preview.sln -c Release --no-restore
+
+      - name: Core tests
+        run: dotnet test src/EveO.Core.Tests/EveO.Core.Tests.csproj -c Release --no-build --nologo
+
+  windows:
+    name: Windows (build + tests)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: dotnet build src/EVE-O-Preview.sln -c Release
+
+      # DWM/GDI/hotkey integration tests need a real interactive desktop session;
+      # they run in the maintainer's pipeline, not on hosted runners.
+      - name: Tests (without interactive desktop)
+        shell: bash
+        run: >
+          dotnet test src/EveO.Tests/EveO.Tests.csproj -c Release --no-build --nologo
+          --filter "FullyQualifiedName!~EveO.Tests.Integration&FullyQualifiedName!~GdiStress"
