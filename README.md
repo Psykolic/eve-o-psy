@@ -35,10 +35,15 @@ interface and does not broadcast keyboard or mouse events.
 
 Download the package for the latest release:
 
-| Asset | Size | Requires |
-|---|---|---|
-| `Release-vX.Y.Z.zip` | ~68 MB | nothing (self-contained .NET runtime) |
-| `EVE-O-Preview-vX.Y.Z-win-x64-singlefile.zip` | ~2.5 MB | .NET 8 Desktop Runtime |
+| Asset | Download | Extracted | Requires |
+|---|---|---|---|
+| `Release-vX.Y.Z.zip` | ~68 MB (485 files) | ~162 MB | nothing — the .NET 8 runtime is inside |
+| `EVE-O-Preview-vX.Y.Z-win-x64-singlefile.zip` | ~0.85 MB (one `EVE-O-Preview.exe`, ~2.4 MB) | ~2.4 MB | **.NET 8 Desktop Runtime** |
+
+The two packages are the same app. The big one carries the runtime (works on a clean machine); the
+small one is a single executable that uses the .NET runtime already installed on Windows. Not sure
+which to pick? Take `Release-vX.Y.Z.zip`. Check the runtime with `dotnet --list-runtimes`
+(`Microsoft.WindowsDesktop.App 8.x`).
 
 Extract anywhere **except** `Program Files` — the app stores `EVE-O-Preview.json` next to the
 executable. Start the app and your clients (order does not matter).
