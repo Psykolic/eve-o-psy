@@ -13,6 +13,7 @@ Forgejo — aqui é o único lugar onde o texto sobreviveu.
 | [8.3.2](8.3.2.md) | Manutenção: config inválida não fecha o app, handle DWM em `SafeHandle`, métricas opcionais |
 | [8.3.3](8.3.3.md) | Grupos de ciclo configuráveis na tela (editor, teclas, ordem) e importação do app anterior |
 | [8.3.4](8.3.4.md) | Refresh imediato ao trocar de cliente (hook de foco/minimizar) e configuração à prova de perda |
+| [8.3.5](8.3.5.md) | Label de até 8 caracteres por cliente e thumbnail que sai da tela quando o cliente fecha |
 
 A partir da 8.3.1 a fonte da verdade é a release no Forgejo (`scripts/release.sh` publica o corpo).
 Estas notas são histórico, não são republicadas.
