@@ -108,6 +108,18 @@ namespace EveOPreview.Configuration.Implementation
 			}
 		}
 
+		public string GetConfigurationFilePath()
+		{
+			try
+			{
+				return System.IO.Path.GetFullPath(this.GetConfigFileName());
+			}
+			catch (System.Exception)
+			{
+				return this.GetConfigFileName();
+			}
+		}
+
 		private string GetConfigFileName()
 		{
 			return string.IsNullOrEmpty(this._appConfig.ConfigFileName) ? ConfigurationStorage.CONFIGURATION_FILE_NAME : this._appConfig.ConfigFileName;
