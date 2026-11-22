@@ -18,6 +18,23 @@ namespace EveOPreview.View
 
 		public Action OpenConfigurationFileRequested { get; set; }
 
+		public Action<int> EditCycleGroupRequested { get; set; }
+
+		public Action<int> ClearCycleGroupRequested { get; set; }
+
+		public Action CreateCycleGroupRequested { get; set; }
+
+		/// <summary>Diálogo de edição de grupo. Devolve null quando cancelado.</summary>
+		public CycleGroupEditModel EditCycleGroup(CycleGroupEditModel model)
+		{
+			return CycleGroupDialog.Edit(this, model);
+		}
+
+		public void ShowGroupMessage(string message)
+		{
+			MessageBox.Show(message, "Grupos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+		}
+
 		/// <summary>
 		/// Mostra os cinco grupos de ciclo (atalhos e clientes na ordem de ciclagem).
 		/// Só leitura: editar continua sendo no arquivo, que o botão abre.
@@ -36,7 +53,7 @@ namespace EveOPreview.View
 
 				foreach (CycleGroupSummary grupo in groups ?? new List<CycleGroupSummary>())
 				{
-					var node = new TreeNode(this.DescribeGroup(grupo));
+					var node = new TreeNode(this.DescribeGroup(grupo)) { Tag = grupo.Number };
 
 					if (grupo.Clients.Count == 0)
 					{
@@ -65,6 +82,20 @@ namespace EveOPreview.View
 		/// Uma linha por grupo, curta o bastante para a aba (327 px): sem colunas, sem
 		/// rolagem horizontal. Os clientes ficam como filhos, na ordem de ciclagem.
 		/// </summary>
+		/// <summary>Grupo selecionado na árvore (o Tag carrega o número).</summary>
+		private void RaiseGroupAction(Action<int> action)
+		{
+			if (action == null)
+			{
+				return;
+			}
+
+			if (this.GroupsTree?.SelectedNode?.Tag is int grupo)
+			{
+				action(grupo);
+			}
+		}
+
 		private string DescribeGroup(CycleGroupSummary grupo)
 		{
 			if (grupo.ForwardHotkeys.Count == 0 && grupo.BackwardHotkeys.Count == 0)
@@ -111,14 +142,46 @@ namespace EveOPreview.View
 				Padding = new Padding(0, 6, 4, 6)
 			};
 
+			var editar = new System.Windows.Forms.Button
+			{
+				Text = "Editar",
+				Width = 70,
+				Dock = DockStyle.Right
+			};
+			editar.Click += delegate { this.RaiseGroupAction(this.EditCycleGroupRequested); };
+
+			var limpar = new System.Windows.Forms.Button
+			{
+				Text = "Limpar",
+				Width = 70,
+				Dock = DockStyle.Right
+			};
+			limpar.Click += delegate { this.RaiseGroupAction(this.ClearCycleGroupRequested); };
+
+			var novo = new System.Windows.Forms.Button
+			{
+				Text = "Novo",
+				Width = 60,
+				Dock = DockStyle.Right
+			};
+			novo.Click += delegate { this.CreateCycleGroupRequested?.Invoke(); };
+
 			var abrirArquivo = new System.Windows.Forms.Button
 			{
-				Text = "Abrir arquivo…",
-				Width = 120,
+				Text = "Arquivo…",
+				Width = 80,
 				Dock = DockStyle.Right
 			};
 			abrirArquivo.Click += delegate { this.OpenConfigurationFileRequested?.Invoke(); };
+
+			// Dock.Right empilha da direita para a esquerda: adicionar nesta ordem deixa
+			// Arquivo | Novo | Limpar | Editar.
 			rodape.Controls.Add(abrirArquivo);
+			rodape.Controls.Add(novo);
+			rodape.Controls.Add(limpar);
+			rodape.Controls.Add(editar);
+
+			this.GroupsTree.DoubleClick += delegate { this.RaiseGroupAction(this.EditCycleGroupRequested); };
 
 			// Ordem de docking: Fill primeiro, bordas depois (o Fill consome o que sobra).
 			this.GroupsTabPage.Controls.Add(this.GroupsTree);

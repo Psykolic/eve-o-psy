@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using EveOPreview.Configuration;
+using EveOPreview.Services;
 using EveOPreview.Mediator.Messages;
 using EveOPreview.View;
 using MediatR;
@@ -30,14 +31,16 @@ namespace EveOPreview.Presenters
 		#endregion
 
 		private readonly IAppConfig _appConfig;
+		private readonly IThumbnailManager _thumbnailManager;
 
-		public MainFormPresenter(IApplicationController controller, IMainFormView view, IMediator mediator, IThumbnailConfiguration configuration, IConfigurationStorage configurationStorage, IAppConfig appConfig)
+		public MainFormPresenter(IApplicationController controller, IMainFormView view, IMediator mediator, IThumbnailConfiguration configuration, IConfigurationStorage configurationStorage, IAppConfig appConfig, IThumbnailManager thumbnailManager)
 			: base(controller, view)
 		{
 			this._mediator = mediator;
 			this._configuration = configuration;
 			this._configurationStorage = configurationStorage;
 			this._appConfig = appConfig;
+			this._thumbnailManager = thumbnailManager;
 
 			this._descriptionsCache = new Dictionary<string, IThumbnailDescription>();
 
@@ -58,6 +61,9 @@ namespace EveOPreview.Presenters
 			this.View.DocumentationLinkActivated = this.OpenDocumentationLink;
 			this.View.ApplicationExitRequested = this.ExitApplication;
 			this.View.OpenConfigurationFileRequested = this.OpenConfigurationFile;
+			this.View.EditCycleGroupRequested = this.EditCycleGroup;
+			this.View.ClearCycleGroupRequested = this.ClearCycleGroup;
+			this.View.CreateCycleGroupRequested = this.CreateCycleGroup;
 
 			this.View.IconName = this._configuration.IconName;
 		}
@@ -247,6 +253,80 @@ namespace EveOPreview.Presenters
 			{
 				AppOperationLog.Record("abrir configuracao falhou: " + exception.GetType().Name);
 			}
+		}
+
+		/// <summary>
+		/// Abre o diálogo do grupo, aplica e salva. Atalho repetido só avisa — o usuário
+		/// pode estar trocando dois grupos de tecla.
+		/// </summary>
+		private async void EditCycleGroup(int numero)
+		{
+			CycleGroupEditModel modelo = this.BuildEditModel(numero);
+			CycleGroupEditModel editado = this.View.EditCycleGroup(modelo);
+
+			if (editado == null)
+			{
+				return;
+			}
+
+			IReadOnlyList<string> conflitos = CycleGroupEditor.FindHotkeyConflicts(
+				this._configuration, numero,
+				new[] { editado.Forward }.Concat(editado.ExtraForward),
+				new[] { editado.Backward }.Concat(editado.ExtraBackward));
+
+			if (conflitos.Count > 0)
+			{
+				this.View.ShowGroupMessage("Atenção:\n\n" + string.Join("\n", conflitos));
+			}
+
+			CycleGroupEditor.SetGroup(this._configuration, numero,
+				new[] { editado.Forward }.Concat(editado.ExtraForward),
+				new[] { editado.Backward }.Concat(editado.ExtraBackward),
+				editado.SelectedClients);
+
+			await this._mediator.Send(new SaveConfiguration());
+			this.View.SetCycleGroups(CycleGroupSummaryBuilder.Build(this._configuration));
+		}
+
+		private async void ClearCycleGroup(int numero)
+		{
+			CycleGroupEditor.ClearGroup(this._configuration, numero);
+			await this._mediator.Send(new SaveConfiguration());
+			this.View.SetCycleGroups(CycleGroupSummaryBuilder.Build(this._configuration));
+		}
+
+		private void CreateCycleGroup()
+		{
+			IReadOnlyList<CycleGroupSummary> grupos = CycleGroupSummaryBuilder.Build(this._configuration);
+			CycleGroupSummary livre = grupos.FirstOrDefault(grupo => grupo.IsEmpty);
+
+			if (livre == null)
+			{
+				this.View.ShowGroupMessage("Os cinco grupos já estão configurados. Use Limpar para liberar um.");
+				return;
+			}
+
+			this.EditCycleGroup(livre.Number);
+		}
+
+		private CycleGroupEditModel BuildEditModel(int numero)
+		{
+			IReadOnlyList<CycleGroupSummary> grupos = CycleGroupSummaryBuilder.Build(this._configuration);
+			CycleGroupSummary grupo = grupos.FirstOrDefault(g => g.Number == numero)
+				?? new CycleGroupSummary(numero, null, null, null);
+
+			IReadOnlyList<CycleGroupClient> clientes = CycleGroupClients.Build(
+				this._configuration.GetKnownClients(),
+				this._thumbnailManager?.GetClientTitles());
+
+			return new CycleGroupEditModel(
+				numero,
+				grupo.ForwardHotkeys.FirstOrDefault(),
+				grupo.BackwardHotkeys.FirstOrDefault(),
+				clientes,
+				grupo.Clients,
+				grupo.ForwardHotkeys.Skip(1),
+				grupo.BackwardHotkeys.Skip(1));
 		}
 
 		private async void SaveApplicationSettings()
