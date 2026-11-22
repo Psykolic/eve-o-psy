@@ -1112,6 +1112,11 @@ namespace EveOPreview.Services
 
 					this.ApplyClientLayout(view);
 					this.ApplyCaptionBar(view);
+
+					// O título muda no login ("EVE" -> "EVE - Personagem") e na troca de
+					// personagem. O cliente pode ter passado a ser spotlight client agora;
+					// sem isto o spotlight só era criado ao mexer na aba Spotlight.
+					this.EnsureSpotlightView(view.Id, process.Title);
 				}
 			}
 
