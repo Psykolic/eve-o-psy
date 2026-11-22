@@ -84,6 +84,33 @@ namespace EveOPreview.Configuration
 		/// <summary>Clientes do grupo, na ordem de ciclagem.</summary>
 		public List<string> SelectedClients { get; }
 
+		/// <summary>
+		/// Lista para a tela: os clientes do grupo primeiro, na ordem de ciclagem salva,
+		/// e depois os demais. Sem isso a lista sai em ordem alfabética e, ao salvar,
+		/// a ordem do grupo era perdida (marcados lidos na ordem da tela).
+		/// </summary>
+		public IReadOnlyList<CycleGroupClient> BuildDisplayList()
+		{
+			var lista = new List<CycleGroupClient>();
+			var usados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+			foreach (string nome in this.SelectedClients)
+			{
+				CycleGroupClient cliente = this.Clients
+					.FirstOrDefault(c => string.Equals(c.Title, nome, StringComparison.OrdinalIgnoreCase));
+
+				lista.Add(cliente ?? new CycleGroupClient(nome, false));
+				usados.Add(nome);
+			}
+
+			foreach (CycleGroupClient cliente in this.Clients.Where(c => !usados.Contains(c.Title)))
+			{
+				lista.Add(cliente);
+			}
+
+			return lista;
+		}
+
 		/// <summary>Atalhos adicionais que já existiam no arquivo e são preservados.</summary>
 		public IReadOnlyList<string> ExtraForward { get; }
 

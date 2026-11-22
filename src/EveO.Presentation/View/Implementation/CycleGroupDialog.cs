@@ -174,7 +174,7 @@ namespace EveOPreview.View
 			this._forwardBox.Text = this._model.Forward;
 			this._backwardBox.Text = this._model.Backward;
 
-			foreach (CycleGroupClient cliente in this._model.Clients)
+			foreach (CycleGroupClient cliente in this._model.BuildDisplayList())
 			{
 				int indice = this._clientsList.Items.Add(cliente);
 				this._clientsList.SetItemChecked(indice, this._model.SelectedClients
