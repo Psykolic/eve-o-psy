@@ -12,32 +12,47 @@
 
 | Item | Estado |
 |---|---|
-| Estrutura | `TabControl` com 7 abas: General, Thumbnail, Zoom, Overlay, Active Clients, Spotlight, About |
+| Estrutura | `TabControl` com 8 abas: General, Thumbnail, Zoom, Overlay, Active Clients, **Grupos** (criada em código, `BuildCycleGroupsTab`), Spotlight, About |
 | Navegação | abas no lado esquerdo (`TabAlignment.Left`), desenhadas à mão (`MainForm.Designer.cs`) |
 | Tema | nativo do Windows (claro); nenhuma camada de tema |
-| Grupos de ciclo | editados por diálogo; não há aba dedicada (`SetCycleGroups` já existe na view) |
+| Grupos de ciclo | aba própria (montada em código) com árvore somente leitura + diálogo de edição |
 | Tamanho | 455×251 px (`ClientSize`), abas com 120 px de largura |
 
-## As duas propostas
+## As três propostas
 
-| | Layout 1 — claro, menu lateral | Layout 2 — grafite, abas no topo |
-|---|---|---|
-| Tema | claro, superfícies brancas, acento azul `#075bc2` | escuro (grafite), acento âmbar `#ffc55a` |
-| Navegação | coluna lateral de 112 px | barra de abas no topo, quebrando linha |
-| Abas | 8 (inclui **Grupos**) | 8 (inclui **Grupos**) |
-| Diferença estrutural vs. hoje | renomeia/realinha seções e promove Grupos a aba | idem + tema escuro |
-| Esforço em WinForms | **baixo** — nativo, só reposicionar e reestilizar | **alto** — exigiria owner-draw |
-| Risco de regressão | baixo | médio/alto |
+| | Layout 1 — claro, menu lateral | Layout 2 — grafite, abas no topo | Layout 3 — azul-marinho, blocos com ícones |
+|---|---|---|---|
+| Tema | claro, superfícies brancas, acento azul `#075bc2` | escuro (grafite), acento âmbar `#ffc55a` | escuro (azul-marinho `#111e31`), acento mint `#73ebc8` |
+| Navegação | coluna lateral de 112 px | barra de abas no topo, quebrando linha | **grade de 4 blocos** com ícone + rótulo, título por tela |
+| Abas | 8 (inclui **Grupos**) | 8 (inclui **Grupos**) | 8 (inclui **Grupos**) |
+| Diferença estrutural vs. hoje | renomeia/realinha seções e promove Grupos a aba | idem + tema escuro | idem + navegação em blocos + General em 2 colunas |
+| Esforço em WinForms | **baixo** — nativo, só reposicionar e reestilizar | **alto** — exigiria owner-draw | **médio** — blocos são botões comuns; tema ainda exige owner-draw |
+| Risco de regressão | baixo | médio/alto | médio |
 
-Os dois mockups mostram o mesmo conteúdo das abas atuais, com três ajustes de informação:
+As três mostram o mesmo conteúdo das abas atuais — inclusive **Grupos**, que já existe como aba
+montada em código. O que muda é organização e aparência:
 
-1. **Grupos** vira aba (hoje a edição é por diálogo).
+1. **Grupos** passa a caber no desenho das abas (hoje é inserida em código na posição 5).
 2. "Active Clients" mantém a lista "check to force hide" e ganha a edição de **label** (já
    implementada no #151).
-3. About com versão real (o mockup mostra `8.3.4.0`).
+3. About com versão real (os mockups mostram `8.3.4.0`).
 
-> Os dados do mockup ("Example Toon", "Do not display previews" marcado) são exemplo, não
+> Os dados dos mockups ("Example Toon", "Do not display previews" marcado) são exemplo, não
 > o estado do mantenedor.
+
+### Layout 3 em detalhe
+
+- **Navegação**: 4 colunas de blocos (General, Thumbnail, Zoom, Overlay / Active Clients,
+  Grupos, Spotlight, About), cada um com ícone e rótulo, quebrando para 2 colunas em telas
+  estreitas. Em WinForms isso é um `TableLayoutPanel` com `Button`s `FlatStyle.Flat` — sem
+  owner-draw.
+- **Ícones**: os glifos do mockup podem ser substituídos por `Segoe MDL2 Assets` /
+  `Segoe Fluent Icons`, presentes no Windows 10/11, sem dependência nova.
+- **Tema**: a mesma tabela de custo vale aqui (checkbox, radio, lista, trackbar, abas); a
+  diferença é que o acento mint sobre azul-marinho exige conferir contraste em 100/125/150%.
+- **General em duas colunas**: ganho real de espaço — hoje os 9 controles ficam em coluna
+  única numa aba de 327 px.
+
 
 ## Por que o tema escuro é caro
 
@@ -58,19 +73,26 @@ Custo estimado: 3–5 sessões com QA visual, contra 1–2 para o Layout 1.
 
 **Fase 1 — Layout 1 (reorganização, sem tema novo).**
 
-- Promover **Grupos** a aba, reaproveitando `SetCycleGroups`/`EditCycleGroup`.
+- Manter a aba **Grupos** (já construída em código) e alinhar seu desenho ao das demais.
 - Alinhar rótulos ("Active Clients", "Grupos", "About") e agrupar os controles como no mockup.
 - Manter as cores do sistema — nenhuma mudança de comportamento, nenhum owner-draw novo.
 
 Aceite: as 8 abas abrem, os controles respondem igual a hoje, a config continua o mesmo JSON,
 `make check` verde e nenhum teste de desktop quebrado.
 
-**Fase 2 — tema (opcional).** Só depois de esgotadas as melhorias do produto:
+**Fase 2 — navegação em blocos (Layout 3, sem tema novo).**
+
+Se a direção visual for a do Layout 3, o passo seguinte é trocar as abas laterais por uma
+grade de botões (4×2) com ícones de `Segoe MDL2 Assets` — ainda com as cores do sistema. Isso
+entrega a navegação nova sem o custo do tema e pode ser medido sozinho.
+
+**Fase 3 — tema (opcional).** Só depois de esgotadas as melhorias do produto:
 
 - Introduzir uma camada mínima de tema (`ITheme` com cores de superfície/acento) e aplicá-la
   primeiro na janela principal.
 - Um controle por vez, com captura antes/depois e teste manual em 100/125/150%.
-- O tema escuro do mockup (grafite + âmbar) é a referência, mas não precisa ser pixel-perfect.
+- O azul-marinho/mint do Layout 3 é o candidato natural (contraste já desenhado no mockup);
+  o grafite do Layout 2 fica como alternativa.
 
 Aceite: alternar claro/escuro sem reiniciar, nenhuma cor ilegível, nenhuma regressão funcional.
 

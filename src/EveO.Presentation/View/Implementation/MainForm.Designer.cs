@@ -1306,7 +1306,7 @@ namespace EveOPreview.View
 			// 
 			ThumbnailsList.BackColor = SystemColors.Window;
 			ThumbnailsList.BorderStyle = BorderStyle.FixedSingle;
-			ThumbnailsList.CheckOnClick = true;
+			ThumbnailsList.CheckOnClick = false;
 			ThumbnailsList.FormattingEnabled = true;
 			ThumbnailsList.IntegralHeight = false;
 			ThumbnailsList.Location = new Point(4, 32);
@@ -1316,6 +1316,8 @@ namespace EveOPreview.View
 			ThumbnailsList.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 			ThumbnailsList.TabIndex = 34;
 			ThumbnailsList.ItemCheck += ThumbnailsList_ItemCheck_Handler;
+			ThumbnailsList.MouseDown += ThumbnailsList_MouseDown_Handler;
+			ThumbnailsList.MouseUp += ThumbnailsList_MouseUp_Handler;
 			ThumbnailsList.SelectedIndexChanged += ThumbnailsList_SelectedIndexChanged_Handler;
 			// 
 			// ClientLabelHintLabel
