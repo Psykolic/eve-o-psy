@@ -20,23 +20,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EveO.Core\EveO.Core.csproj" />
-    <ProjectReference Include="..\..\samples\EveO.Plugin.Sample\EveO.Plugin.Sample.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\samples\EveO.Plugin.Broken\EveO.Plugin.Broken.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="FluentAssertions" />
   </ItemGroup>
-  <!-- Os plugins de exemplo entram como ARQUIVO, nao como referencia: um plugin ja
-       carregado no host e (corretamente) ignorado pelo loader. -->
-  <Target Name="CopiaPluginsDeExemplo" AfterTargets="Build">
-    <ItemGroup>
-      <PluginDeExemplo Include="$(MSBuildThisFileDirectory)..\..\samples\EveO.Plugin.Sample\bin\$(Configuration)\net8.0\EveO.Plugin.Sample.dll" />
-      <PluginQuebrado Include="$(MSBuildThisFileDirectory)..\..\samples\EveO.Plugin.Broken\bin\$(Configuration)\net8.0\EveO.Plugin.Broken.dll" />
-    </ItemGroup>
-    <Copy SourceFiles="@(PluginDeExemplo)" DestinationFolder="$(OutDir)plugins-sample\sample" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(PluginQuebrado)" DestinationFolder="$(OutDir)plugins-sample\broken" SkipUnchangedFiles="true" />
-  </Target>
 
 </Project>
