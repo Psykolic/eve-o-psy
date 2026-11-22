@@ -173,6 +173,7 @@ namespace EveOPreview.Presenters
 			this.View.SetCycleGroups(CycleGroupSummaryBuilder.Build(this._configuration));
 
 			this.View.MinimizeToTray = this._configuration.MinimizeToTray;
+			this.View.DarkTheme = this._configuration.DarkTheme;
 
 			this.View.ThumbnailOpacity = this._configuration.ThumbnailOpacity;
 			this.View.SpotlightOpacity = this._configuration.SpotlightOpacity;
@@ -347,6 +348,7 @@ namespace EveOPreview.Presenters
 		private async void SaveApplicationSettings()
 		{
 			this._configuration.MinimizeToTray = this.View.MinimizeToTray;
+			this._configuration.DarkTheme = this.View.DarkTheme;
 
 			this._configuration.ThumbnailOpacity = (float)this.View.ThumbnailOpacity;
 			this._configuration.SpotlightOpacity = (float)this.View.SpotlightOpacity;

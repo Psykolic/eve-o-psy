@@ -1,4 +1,4 @@
-Ôªøusing System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -103,6 +103,7 @@ namespace EveOPreview.Configuration.Implementation
 			this.ExecutablesToPreview = new List<string> { "exefile" };
 
 			this.MinimizeToTray = false;
+			this.DarkTheme = true;
 			this.ThumbnailRefreshPeriod = 500;
 			// Fase 2.2 (ADR-006): refresh event-driven, com tick lento de reconciliacao
 			// para cobrir eventos que nao chegam (UIPI/execucao elevada).
@@ -167,7 +168,7 @@ namespace EveOPreview.Configuration.Implementation
 			this.ActiveClientHighlightThickness = 3;
 
 			this.OverlayLabelColor = Color.Orange;
-			// Fonte neutra (issue #162): o execut√°vel define o padr√£o da plataforma e converte.
+			// Fonte neutra (issue #162): o execut·vel define o padr„o da plataforma e converte.
 			this.OverlayLabelFont = string.Empty;
 
 			this.IconName = "";
@@ -245,6 +246,9 @@ namespace EveOPreview.Configuration.Implementation
 		[JsonProperty("PerClientZoomAnchor")]
 		public Dictionary<string, ZoomAnchor> PerClientZoomAnchor{ get; set; }
 		public bool MinimizeToTray { get; set; }
+
+		/// <summary>Tema escuro da janela (fase 3 do layout); padrao ligado.</summary>
+		public bool DarkTheme { get; set; }
 		public int ThumbnailRefreshPeriod { get; set; }
 
 		/// <summary>

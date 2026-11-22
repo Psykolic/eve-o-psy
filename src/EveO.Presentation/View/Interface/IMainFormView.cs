@@ -13,6 +13,9 @@ namespace EveOPreview.View
 	{
 		bool MinimizeToTray { get; set; }
 
+		/// <summary>Tema escuro da janela (fase 3 do layout).</summary>
+		bool DarkTheme { get; set; }
+
 		double ThumbnailOpacity { get; set; }
 		double SpotlightOpacity { get; set; }
 		IList<string> SpotlightClients { get; }
