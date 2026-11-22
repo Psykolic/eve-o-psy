@@ -15,3 +15,13 @@ Forgejo — aqui é o único lugar onde o texto sobreviveu.
 
 A partir da 8.3.1 a fonte da verdade é a release no Forgejo (`scripts/release.sh` publica o corpo).
 Estas notas são histórico, não são republicadas.
+
+## Dois pacotes por release
+
+| Asset | Tamanho | Requer |
+|---|---|---|
+| `Release-vX.Y.Z.zip` | ~67 MB | nada — runtime .NET embutido (**use este se não souber**) |
+| `EVE-O-Preview-vX.Y.Z-win-x64-singlefile.zip` | ~2,5 MB | **.NET 8 Desktop Runtime** instalado |
+
+O pacote pequeno é um único `EVE-O-Preview.exe`; conveniente para atualizar, mas não abre sem o
+runtime. O smoke da CI roda só no self-contained (o prefixo Wine do runner não tem o runtime).
