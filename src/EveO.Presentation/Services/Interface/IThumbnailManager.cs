@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EveOPreview.View;
@@ -32,6 +33,9 @@ namespace EveOPreview.Services
 		/// Aplicado sem reiniciar — editar atalho não deve exigir fechar o aplicativo.
 		/// </summary>
 		void RefreshCycleGroupHotkeys();
+
+		/// <summary>Títulos das thumbnails vivas — os clientes abertos agora.</summary>
+		IReadOnlyList<string> GetClientTitles();
 
 		IThumbnailView GetClientByTitle(string title);
 		IThumbnailView GetClientByPointer(System.IntPtr ptr);

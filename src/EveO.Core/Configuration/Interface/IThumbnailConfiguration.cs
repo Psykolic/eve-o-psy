@@ -112,6 +112,12 @@ namespace EveOPreview.Configuration
 		ClientLayout GetClientLayout(string currentClient);
 		void SetClientLayout(string currentClient, ClientLayout layout);
 
+		/// <summary>
+		/// Todos os nomes de cliente que a configuração conhece (grupos, layout por cliente
+		/// e layout achatado). Usado pelo editor de grupos para oferecer escolhas.
+		/// </summary>
+		IReadOnlyCollection<string> GetKnownClients();
+
 		HotkeyBinding GetClientHotkey(string currentClient);
 		void SetClientHotkey(string currentClient, HotkeyBinding hotkey);
 		bool IsPriorityClient(string currentClient);

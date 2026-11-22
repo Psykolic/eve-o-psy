@@ -171,6 +171,15 @@ namespace EveOPreview.Services
 			EnsureUiThread(this._uiThreadId, operation);
 		}
 
+		public IReadOnlyList<string> GetClientTitles()
+		{
+			return this._thumbnailViews.Values
+				.Select(view => view.Title)
+				.Where(title => !string.IsNullOrWhiteSpace(title))
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToList();
+		}
+
 		public IThumbnailView GetClientByTitle(string title)
 		{
 			this.EnsureThumbnailViewsThread(nameof(GetClientByTitle));
