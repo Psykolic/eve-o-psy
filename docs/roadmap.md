@@ -17,6 +17,19 @@
 > **Regra de leitura:** este documento é o **plano**. O que **já existe** está na tabela abaixo, com
 > evidência (PR, ADR ou teste). Antes de planejar, confira o código — o plano não anda sozinho.
 
+### Diretriz do projeto (2026-11-22)
+
+O aplicativo **cumpre o propósito**: ele não precisa de funcionalidade nova.
+
+| Etapa | O que cabe |
+|---|---|
+| 1. Melhoria e ajuste | defeito, robustez, desempenho, compatibilidade e usabilidade do que **já existe** — com dor medida |
+| 2. Cosmético | esgotadas as melhorias: visual, texto, espaçamento, ícone. **Nada** que mude comportamento |
+| Fora | funcionalidade nova; "nice-to-have" (P3) não é fila de trabalho |
+
+Funcionalidade nova ou melhoria sem dor comprovada exigem decisão explícita do mantenedor —
+não devem ser propostas como iniciativa.
+
 ### Estado verificado em 2026-11-22
 
 | Item | Estado | Evidência |
