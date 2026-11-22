@@ -60,7 +60,7 @@ jobs:
           --filter "FullyQualifiedName!~EveO.Tests.Integration&FullyQualifiedName!~GdiStress"
 
   windows-desktop:
-    name: Windows (desktop: DWM/GDI/hotkey)
+    name: Windows (desktop)
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
