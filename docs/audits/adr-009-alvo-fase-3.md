@@ -103,3 +103,20 @@ Sem (1)+(2), reescrever a UI é custo sem entrega.
 - ADR-006 (push-based), ADR-007 (virtualização), ADR-008 (pool DWM) — mesmo critério: medir antes.
 - `docs/audits/linux-only-pipeline.md`, `docs/audits/validacao-linux-wine.md`
 - #46 (superfície preta em cliente DX fora de foco)
+
+---
+
+## Fechamento de 2026-11-22
+
+A trilha de **extensibilidade (3.3, 3.4, 3.6) também foi encerrada**: o projeto não será aberto a
+contribuição de terceiros, e sem esse público não há para quem entregar plugin SDK, `CONTRIBUTING.md`,
+template `dotnet new` ou plugin de comunidade. Event sourcing cai pelo mesmo motivo.
+
+- **3.3** parou no incremento 1: contrato `IPlugin`/`IPluginContext`, `PluginLoader` com contexto
+  isolado e `PluginHost` ligado ao app; nada disso tem API de app e nada é usado sem a pasta
+  `Plugins\` ao lado do exe.
+- **3.4** e **3.6** não começaram e não começam.
+
+**Regra para o futuro:** a Fase 3 não volta para o roadmap. Reabrir qualquer um destes itens exige
+decisão explícita do mantenedor — não uma releitura deste documento, nem uma "oportunidade" vista
+no código já existente. Este ADR é o único lugar onde o assunto continua registrado.

@@ -11,7 +11,6 @@
 | **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
 | **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 1.3 parcial; 1.1, 1.2, 1.4, 1.5, 1.6 e 1.7 ✅ |
 | **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | ✅ concluída |
-| **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ✅ **encerrada em 2026-11-22**: cross-platform adiada (ADR-009), extensibilidade **não fazer** (o projeto não será aberto a terceiros) |
 
 > **Legenda de Prioridade**: P0 = Blocker (impede progresso), P1 = Crítico (risco alto), P2 = Importante (dívida técnica), P3 = Nice-to-have (melhoria futura)
 
@@ -150,66 +149,6 @@ Separar camadas (Domain/Infrastructure/Presentation), **avaliar com medições**
 
 ---
 
-## Fase 3 — Cross-Platform & Extensibility (dividida pelo ADR-009)
-
-### Objetivo
-Habilitar execução nativa no Linux/macOS via Avalonia/Uno, introduzir plugin architecture para extensibilidade comunitária e implementar event sourcing para auditoria/histórico de layouts.
-
-### Deliverables & Acceptance Criteria
-
-| ID | Deliverable | Acceptance Criteria (Mensurável) | Prioridade | Auditoria Ref. |
-|----|-------------|----------------------------------|------------|----------------|
-| **3.1** ⏸ | Proof-of-Concept Avalonia 11 / Uno Platform | • `EveO.Avalonia` project compila e roda no Linux (Wayland + X11)<br>• Thumbnail preview via compositor nativo (não DWM) — ex: `wlr-screencopy` / PipeWire<br>• Feature parity: cycle clients, minimize all, layout save/load | **P2** | #6.13 |
-| **3.2** ⏸ | Abstração de plataforma `IPlatformWindowManager` + `IPlatformThumbnailProvider` | • Windows: `DwmThumbnailProvider`, `Win32WindowManager`<br>• Linux: `PipeWireThumbnailProvider`, `WaylandWindowManager` / `X11WindowManager`<br>• macOS: `ScreenCaptureKitThumbnailProvider`, `CocoaWindowManager` | **P2** | #6.1, #6.8 |
-| **3.3** ⏸ | Plugin Architecture (MEF / System.ComponentModel.Composition ou custom) | • `IPlugin` interface com `Initialize(IServiceCollection)`, `Metadata`<br>• Plugins carregados de `%APPDATA%\EVE-O\Plugins\`<br>• Exemplo plugin: "Discord Rich Presence", "Overlay Custom", "Metrics Exporter"<br>• Sandbox: plugins rodam em `AssemblyLoadContext` isolado | **P2** | #6.15 |
-| **3.4** ❌ | Event Sourcing para layout/histórico de clientes | • `ClientLayoutEventStore` (EventStoreDB ou SQLite + append-only)<br>• Eventos: `ClientAdded`, `ClientRemoved`, `LayoutSaved`, `CycleGroupChanged`, `FrameSettingsChanged`<br>• Projeções: `CurrentLayoutView`, `ClientSessionHistory`<br>• Time-travel debug: replay eventos para reproduzir estado | **P3** | #6.14 |
-| **3.5** ⏸ | CI/CD Multi-platform (Windows, Linux, macOS) | • Build matrix: win-x64, linux-x64, osx-x64, osx-arm64<br>• Publish: MSIX (Windows), AppImage/Flatpak (Linux), .app/dmg (macOS)<br>• Auto-update via GitHub Releases + custom updater | **P3** | #7.6 |
-| **3.6** ❌ | Documentação de contribuição + plugin SDK | • `CONTRIBUTING.md`, `PLUGIN_DEVELOPMENT.md`<br>• NuGet package `EveO.Plugin.Sdk`<br>• Template `dotnet new eveo-plugin` | **P3** | #6.15 |
-
-### Decisão do ADR-009 (2026-11-21)
-
-A Fase 3 foi **dividida em duas trilhas**:
-
-- **cross-platform (3.1, 3.2, 3.5) — adiada.** Trocar a UI não resolve o bloqueio real: no Linux não
-  existe equivalente ao DWM para espelhar janela de terceiro em tempo real. Reescrever 8.387 linhas de
-  WinForms entregaria a mesma captura estática com outra aparência.
-- **extensibilidade (3.3, 3.4, 3.6) — liberada**, porque não depende de UI nem de DWM.
-
-Gates para reabrir a trilha cross-platform: demanda comprovada E spike de 3 dias mostrando ≥ 90% dos
-casos com captura nativa. Ver `audits/adr-009-alvo-fase-3.md`.
-
-### Decisão de 2026-11-22 (extensibilidade)
-
-**3.4 e 3.6 — não fazer.** O projeto **não será aberto a contribuição de terceiros**, e sem isso
-não existe público para SDK, `CONTRIBUTING.md`, template `dotnet new` nem para plugin de comunidade.
-Event sourcing cai pelo mesmo motivo: só se justificaria para auditoria/histórico que ninguém pediu.
-
-**3.3 — parado no incremento 1.** O contrato (`IPlugin`, `PluginLoader` com contexto isolado,
-`PluginHost`) está no `main` e carrega de `Plugins\` ao lado do exe, provado em execução no Wine.
-Ficou **sem API de app** — e sem demanda que a justifique, já que plugin era justamente o item de
-abertura para terceiros. Sem a pasta `Plugins\`, o custo em runtime é zero.
-
-Consequência: a **Fase 3 está encerrada**. Reabrir qualquer item exige decisão explícita do
-mantenedor, não uma leitura nova deste documento.
-
-### Dependências
-- 3.1 → 3.2 (PoC valida abstrações)
-- 3.2 → 3.3 (plugin SDK usa platform abstractions)
-- 3.4 independente (pode começar após Fase 2)
-- 3.5 requer 3.1, 3.2 funcionando
-- 3.6 por último
-
-### Riscos & Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| Avalonia/Uno não suporta live thumbnail nativo no Linux | Alta | Blocker | Spike técnico de 1 sprint antes de commit; fallback: polling bitmap (como `StaticThumbnailView`) |
-| Plugin sandboxing complexo no .NET 8 (AssemblyLoadContext) | Média | Alto | Usar `Microsoft.Extensions.DependencyInjection` + `AssemblyLoadContext` custom; documentar limitações |
-| EventStoreDB adiciona dependência operacional | Média | Médio | Opção SQLite append-only para embedded; EventStoreDB apenas para deployments multi-user |
-| Feature parity Windows vs Linux/macOS | Alta | Médio | Definir "MVP cross-platform" claramente; aceitar gaps documentados (ex: hotkeys globais no Wayland) |
-
----
-
 ## Rastreabilidade: Auditoria → Roadmap
 
 | Auditoria Finding | Fase(s) | Items |
@@ -217,7 +156,7 @@ mantenedor, não uma leitura nova deste documento.
 | #5.1 Zoom on hover perf | 1.5, 2.3 (spike) | Benchmarks + Virtualization spike |
 | #5.2 DispatcherTimer polling | 2.2 (spike) | Reactive streams spike (gate: >30% CPU reduction) |
 | #5.3 DWM thumbnail limits | 2.4 (spike) | Thumbnail pool spike (gate: handle limit comprovado) |
-| #6.1 Strong coupling DWM | 1.2, 2.1, 3.2 | IThumbnailProvider + Layer separation |
+| #6.1 Strong coupling DWM | 1.2, 2.1 | IThumbnailProvider + Layer separation |
 | #6.2 Win32 handle leaks | 1.3, 2.4 (spike) | SafeHandle + Pool spike |
 | #6.3 JSON config no schema | 1.4 | FluentValidation |
 | #6.4 MVP + MediatR mixed | 2.1, 2.6 | Layer separation + Event-driven |
@@ -226,9 +165,6 @@ mantenedor, não uma leitura nova deste documento.
 | #6.7 Reactive patterns | 2.2 (spike), 2.6 | Spike first, then event-driven config |
 | #6.8 Virtualization | 2.3 (spike) | Virtualization spike (gate: >20% memory reduction) |
 | #6.9 TestContainers | 2.5 | Windows/Wine container tests |
-| #6.13 Avalonia/Uno | 3.1, 3.2 | Cross-platform PoC |
-| #6.14 Event Sourcing | 3.4 | ClientLayoutEventStore |
-| #6.15 Plugin Architecture | 3.3, 3.6 | IPlugin + SDK |
 | #7.1–#7.6 Immediate next steps | 1.1–1.7 | All Phase 1 items |
 | #H1 CycleNextClient allocs | 1.5 | BenchmarkDotNet CycleNextClient |
 | #H2 Timer CPU idle | 2.2 (spike) | Reactive streams spike |
@@ -241,15 +177,14 @@ mantenedor, não uma leitura nova deste documento.
 
 ## Métricas de Sucesso por Fase
 
-| Métrica | Baseline (Fase 0) | Fase 1 Target | Fase 2 Target | Fase 3 Target |
-|---------|-------------------|---------------|---------------|---------------|
-| Startup time | ~2–3s | <2s | <1.5s | <1s (AOT) |
-| CPU idle (7 clientes) | ~3–5% | <2% | **<1%** | <1% |
-| Memória (7 clientes) | ~150–200MB | <150MB | **<100MB** | <80MB |
-| Refresh latency | ~50–100ms | <50ms | **<30ms** | <20ms |
-| DWM handles abertos | 7+ | 7 (pool) | **Pool size** | N/A (abstração) |
-| Test coverage | 0% | 60% | 80% | 85% |
-| Platforms suportados | Windows | Windows | Windows | Win/Linux/macOS |
+| Métrica | Baseline (Fase 0) | Fase 1 Target | Fase 2 Target |
+|---------|-------------------|---------------|---------------|
+| Startup time | ~2–3s | <2s | <1.5s |
+| CPU idle (7 clientes) | ~3–5% | <2% | **<1%** |
+| Memória (7 clientes) | ~150–200MB | <150MB | **<100MB** |
+| Refresh latency | ~50–100ms | <50ms | **<30ms** |
+| DWM handles abertos | 7+ | 7 (pool) | **Pool size** |
+| Test coverage | 0% | 60% | 80% |
 
 **O que desses alvos tem medição (2026-11-22):** CPU idle **0,04%** (alvo <1%), refresh **4–10 ms**
 (alvo <30 ms), handles estáveis (**89**, 1 h 39 com 8 clientes). **Memória, tempo de startup e
@@ -263,8 +198,9 @@ cobertura de testes nunca foram medidos** — são promessas do plano, não resu
 - **Review cadence**: Fim de cada sprint (Phase 1–2), mensal (Phase 3)
 - **Gate criteria**: Todos P0/P1 "Done" + métricas validadas com profiling real
 - **Rollback plan**: Branch `main` protegido; feature flags para novas abstrações
-- **Stakeholders**: Tech Lead (arquitetura), Maintainer (release), Community (plugins)
+- **Stakeholders**: Tech Lead (arquitetura), Maintainer (release)
 
 ---
 
-*Documento vivo. Última revisão: 2026-11-22 (Fase 3 encerrada, 1.3 decidido com evidência).*
+*Documento vivo. Última revisão: 2026-11-22. Este documento lista apenas o que pode ser feito:
+itens decididos como fora de escopo saem daqui e ficam no ADR correspondente.*
