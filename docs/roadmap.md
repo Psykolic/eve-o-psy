@@ -9,7 +9,7 @@
 | Fase | Nome | Objetivo | Duração Estimada | Prioridade Geral | Estado |
 |------|------|----------|------------------|------------------|--------|
 | **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
-| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 1.3 parcial; 1.1, 1.2, 1.4, 1.5, 1.6 e 1.7 ✅ |
+| **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | ✅ concluída (1.3 decidido com evidência) |
 | **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | ✅ concluída |
 
 > **Legenda de Prioridade**: P0 = Blocker (impede progresso), P1 = Crítico (risco alto), P2 = Importante (dívida técnica), P3 = Nice-to-have (melhoria futura)
@@ -17,7 +17,7 @@
 > **Regra de leitura:** este documento é o **plano**. O que **já existe** está na tabela abaixo, com
 > evidência (PR, ADR ou teste). Antes de planejar, confira o código — o plano não anda sozinho.
 
-### Estado verificado em 2026-11-21
+### Estado verificado em 2026-11-22
 
 | Item | Estado | Evidência |
 |------|--------|-----------|
@@ -53,7 +53,7 @@
 
 ---
 
-## Fase 1 — Stabilization (concluída em parte — ver estado acima)
+## Fase 1 — Stabilization (concluída)
 
 ### Objetivo
 Eliminar blockers de produção, estabelecer infraestrutura de testes automatizados e introduzir abstrações para desacoplar DWM/Win32 do núcleo da aplicação. **Prioridade absoluta: estabilidade, gerenciamento correto de recursos GDI/DWM, integridade das configurações e testes de regressão.**
