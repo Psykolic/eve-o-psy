@@ -886,8 +886,8 @@ namespace EveOPreview.View
 			string hotkey = hotkeyInfo?.Replace("Control+", "Ctrl+") ?? string.Empty;
 
 			this.SpotlightHotkeyLabel.Text = string.IsNullOrEmpty(hotkey)
-				? "Drag edges to resize · Shift+right-drag to crop"
-				: $"{hotkey} toggle · drag edges · Shift+right-drag crop";
+				? "Drag edges · Shift = free · Shift+right = crop"
+				: $"{hotkey} · drag edges · Shift = free · Shift+right = crop";
 		}
 
 		public void SetSpotlightRegionInfo(string title, Rectangle region)

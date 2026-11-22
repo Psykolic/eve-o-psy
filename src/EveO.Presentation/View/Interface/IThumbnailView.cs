@@ -12,6 +12,9 @@ namespace EveOPreview.View
 		string Title { get; set; }
 
 		bool IsActive { get; set; }
+
+		/// <summary>O usuário está arrastando uma borda/quina (resize em andamento).</summary>
+		bool IsUserResizing { get; }
 		bool IsDisposed { get; }
 		Point ThumbnailLocation { get; set; }
 		Size ThumbnailSize { get; set; }

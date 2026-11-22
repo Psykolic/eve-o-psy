@@ -137,6 +137,9 @@ namespace EveOPreview.View
 
 		public bool IsActive { get; set; }
 
+		/// <summary>Resize em andamento iniciado pelo usuário (arrasto de borda/quina).</summary>
+		public bool IsUserResizing => this._isResizing;
+
 		public bool IsOverlayEnabled { get; set; }
 		public bool IsExcludedFromCycleGroup { get; set; }
 		public bool IsSpotlight
@@ -673,7 +676,7 @@ namespace EveOPreview.View
 		{
 			Keys modifiers = Control.ModifierKeys;
 
-			if (this.IsSpotlight && e.Button == MouseButtons.Left && (modifiers == Keys.None || modifiers == Keys.Shift) && !this._config.LockThumbnailLocation)
+			if (this.IsSpotlight && e.Button == MouseButtons.Left && (modifiers == Keys.None || modifiers == Keys.Shift))
 			{
 				SpotlightResizeEdge edge = this.GetResizeEdge(this.PointToClient(Control.MousePosition));
 				if (edge != SpotlightResizeEdge.None)
@@ -957,9 +960,9 @@ namespace EveOPreview.View
 
 		private void UpdateResizeCursor()
 		{
-			SpotlightResizeEdge edge = this._config.LockThumbnailLocation
-				? SpotlightResizeEdge.None
-				: this.GetResizeEdge(this.PointToClient(Control.MousePosition));
+			// Travar a posição não deve impedir o redimensionamento: mover continua
+			// bloqueado em ProcessCustomMouseMode, mas a borda segue arrastável.
+			SpotlightResizeEdge edge = this.GetResizeEdge(this.PointToClient(Control.MousePosition));
 
 			this.SetMouseCursor(edge == SpotlightResizeEdge.None ? Cursors.Hand : ThumbnailView.GetResizeCursor(edge));
 		}

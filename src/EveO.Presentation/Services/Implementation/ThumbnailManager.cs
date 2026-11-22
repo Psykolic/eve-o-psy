@@ -567,6 +567,14 @@ namespace EveOPreview.Services
 		{
 			foreach (IThumbnailView view in this._spotlightViews.Values)
 			{
+				// Arrasto em andamento: reaplicar tamanho/localização da configuração
+				// faria a janela voltar no meio do gesto — a configuração só recebe o
+				// tamanho final quando o usuário solta a borda (issue #163).
+				if (view.IsUserResizing)
+				{
+					continue;
+				}
+
 				if (!this._spotlightsVisible)
 				{
 					if (view.IsActive)
