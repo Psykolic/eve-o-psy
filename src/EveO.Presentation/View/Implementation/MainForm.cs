@@ -849,24 +849,41 @@ namespace EveOPreview.View
 			TabControl control = (TabControl)sender;
 			TabPage page = control.TabPages[e.Index];
 			Rectangle bounds = control.GetTabRect(e.Index);
-
 			Graphics graphics = e.Graphics;
+			bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-			Brush textBrush = new SolidBrush(SystemColors.ActiveCaptionText);
-			Brush backgroundBrush = (e.State == DrawItemState.Selected)
-										? new SolidBrush(SystemColors.Control)
-										: new SolidBrush(SystemColors.ControlDark);
-			graphics.FillRectangle(backgroundBrush, e.Bounds);
+			// Fundo chapado: o bevel 3D do Windows some, e a aba selecionada vira
+			// superficie de conteudo (mesma cor da area a direita).
+			using (SolidBrush background = new SolidBrush(selected ? SystemColors.Window : SystemColors.Control))
+			{
+				graphics.FillRectangle(background, e.Bounds);
+			}
 
-			// Use our own font
-			Font font = new Font("Arial", this.Font.Size * 1.5f, FontStyle.Bold, GraphicsUnit.Pixel);
+			// Barra de acento na borda esquerda, como um menu lateral.
+			if (selected)
+			{
+				using (SolidBrush accent = new SolidBrush(SystemColors.Highlight))
+				{
+					graphics.FillRectangle(accent, new Rectangle(bounds.Left + 1, bounds.Top + 4, 3, Math.Max(1, bounds.Height - 8)));
+				}
+			}
 
-			// Draw string and center the text
-			StringFormat stringFlags = new StringFormat();
-			stringFlags.Alignment = StringAlignment.Center;
-			stringFlags.LineAlignment = StringAlignment.Center;
+			// Separador fino entre as abas, no lugar da moldura 3D.
+			using (Pen separator = new Pen(SystemColors.ControlDark))
+			{
+				graphics.DrawLine(separator, bounds.Left + 6, bounds.Bottom - 1, bounds.Right - 6, bounds.Bottom - 1);
+			}
 
-			graphics.DrawString(page.Text, font, textBrush, bounds, stringFlags);
+			using (Font font = new Font(this.Font.FontFamily, this.Font.Size * 1.25f, FontStyle.Bold, GraphicsUnit.Pixel))
+			{
+				TextRenderer.DrawText(
+					graphics,
+					page.Text,
+					font,
+					bounds,
+					selected ? SystemColors.ControlText : SystemColors.GrayText,
+					TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+			}
 		}
 
 		private void OptionChanged_Handler(object sender, EventArgs e)

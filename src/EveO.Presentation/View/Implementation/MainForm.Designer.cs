@@ -295,7 +295,7 @@ namespace EveOPreview.View
 			// label4
 			// 
 			label4.AutoSize = true;
-			label4.Location = new Point(6, 96);
+			label4.Location = new Point(9, 96);
 			label4.Margin = new Padding(4, 0, 4, 0);
 			label4.Name = "label4";
 			label4.Size = new Size(91, 15);
@@ -467,7 +467,7 @@ namespace EveOPreview.View
 			// PreventPreviewsCheckBox
 			// 
 			PreventPreviewsCheckBox.AutoSize = true;
-			PreventPreviewsCheckBox.Location = new Point(13, 168);
+			PreventPreviewsCheckBox.Location = new Point(9, 168);
 			PreventPreviewsCheckBox.Margin = new Padding(4);
 			PreventPreviewsCheckBox.Name = "PreventPreviewsCheckBox";
 			PreventPreviewsCheckBox.Size = new Size(151, 19);
@@ -494,7 +494,7 @@ namespace EveOPreview.View
 			ThumbnailSnapToGridSizeYNumericEdit.BorderStyle = BorderStyle.FixedSingle;
 			ThumbnailSnapToGridSizeYNumericEdit.CausesValidation = false;
 			ThumbnailSnapToGridSizeYNumericEdit.Increment = new decimal(new int[] { 10, 0, 0, 0 });
-			ThumbnailSnapToGridSizeYNumericEdit.Location = new Point(152, 141);
+			ThumbnailSnapToGridSizeYNumericEdit.Location = new Point(202, 141);
 			ThumbnailSnapToGridSizeYNumericEdit.Margin = new Padding(4);
 			ThumbnailSnapToGridSizeYNumericEdit.Maximum = new decimal(new int[] { 999999, 0, 0, 0 });
 			ThumbnailSnapToGridSizeYNumericEdit.Name = "ThumbnailSnapToGridSizeYNumericEdit";
@@ -506,7 +506,7 @@ namespace EveOPreview.View
 			// SnapYLabel
 			// 
 			SnapYLabel.AutoSize = true;
-			SnapYLabel.Location = new Point(128, 143);
+			SnapYLabel.Location = new Point(186, 143);
 			SnapYLabel.Margin = new Padding(4, 0, 4, 0);
 			SnapYLabel.Name = "SnapYLabel";
 			SnapYLabel.Size = new Size(14, 15);
@@ -519,7 +519,7 @@ namespace EveOPreview.View
 			ThumbnailSnapToGridSizeXNumericEdit.BorderStyle = BorderStyle.FixedSingle;
 			ThumbnailSnapToGridSizeXNumericEdit.CausesValidation = false;
 			ThumbnailSnapToGridSizeXNumericEdit.Increment = new decimal(new int[] { 10, 0, 0, 0 });
-			ThumbnailSnapToGridSizeXNumericEdit.Location = new Point(65, 141);
+			ThumbnailSnapToGridSizeXNumericEdit.Location = new Point(122, 141);
 			ThumbnailSnapToGridSizeXNumericEdit.Margin = new Padding(4);
 			ThumbnailSnapToGridSizeXNumericEdit.Maximum = new decimal(new int[] { 999999, 0, 0, 0 });
 			ThumbnailSnapToGridSizeXNumericEdit.Name = "ThumbnailSnapToGridSizeXNumericEdit";
@@ -541,7 +541,7 @@ namespace EveOPreview.View
 			// LockThumbnailLocationCheckbox
 			// 
 			LockThumbnailLocationCheckbox.AutoSize = true;
-			LockThumbnailLocationCheckbox.Location = new Point(13, 94);
+			LockThumbnailLocationCheckbox.Location = new Point(9, 94);
 			LockThumbnailLocationCheckbox.Margin = new Padding(4);
 			LockThumbnailLocationCheckbox.Name = "LockThumbnailLocationCheckbox";
 			LockThumbnailLocationCheckbox.Size = new Size(161, 19);
@@ -1491,7 +1491,7 @@ namespace EveOPreview.View
 			// DocumentationLinkLabel
 			// 
 			DocumentationLinkLabel.AutoSize = true;
-			DocumentationLinkLabel.Location = new Point(0, 188);
+			DocumentationLinkLabel.Location = new Point(0, 180);
 			DocumentationLinkLabel.Margin = new Padding(4, 0, 4, 0);
 			DocumentationLinkLabel.Name = "DocumentationLinkLabel";
 			DocumentationLinkLabel.Padding = new Padding(9, 4, 9, 4);
@@ -1534,7 +1534,7 @@ namespace EveOPreview.View
 			// 
 			// DocumentationLink
 			// 
-			DocumentationLink.Location = new Point(0, 204);
+			DocumentationLink.Location = new Point(0, 196);
 			DocumentationLink.Margin = new Padding(35, 4, 4, 4);
 			DocumentationLink.Name = "DocumentationLink";
 			DocumentationLink.Padding = new Padding(9, 4, 9, 4);
