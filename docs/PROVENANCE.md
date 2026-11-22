@@ -5,8 +5,8 @@ O EVE-O Custom, como conjunto, é distribuído sob `GPL-3.0-only`. O texto integ
 | Origem | Referência | Tratamento |
 | --- | --- | --- |
 | EVE-O Preview, upstream compartilhado | [`3febbe5`](https://github.com/Proopai/eve-o-preview/commit/3febbe503de8cf85abcbba31bc2ab89f76f7b492) | Preservar os avisos herdados. |
-| EVE-O Custom antes desta decisão | [`9b8cca8`](https://github.com/Psykolic/eve-o-custom/tree/9b8cca8fb08319a360be8f5b22a0450383cdd674) | Base técnica para a integração. O `LICENSE` MIT desse commit foi copiado byte a byte. |
-| EVE-O Preview T0C | [`8b8777a`](https://github.com/Psykolic/eve-o-preview-t0c/tree/8b8777a32fc766f5336a695f52e08f329db4f850) | O texto GPLv3 veio do `LICENSE` desse commit. Qualquer importação de código deve registrar o repositório, o SHA, os arquivos e a licença aplicável. |
+| EVE-O Custom antes desta decisão | commit `9b8cca8` do repositório anterior (removido do GitHub em 2026-11-22; o SHA fica como registro) | Base técnica para a integração. O `LICENSE` MIT desse commit foi copiado byte a byte. |
+| EVE-O Preview T0C | commit `8b8777a` do repositório `eve-o-preview-t0c` (removido do GitHub em 2026-11-22; o SHA fica como registro) | O texto GPLv3 veio do `LICENSE` desse commit. Qualquer importação de código deve registrar o repositório, o SHA, os arquivos e a licença aplicável. |
 
 ---
 

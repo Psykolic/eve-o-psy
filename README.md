@@ -3,8 +3,18 @@
 A task switcher for multiple EVE Online clients: live thumbnails of every client, one click or
 hotkey to bring one to the foreground.
 
-This is the **EVE-O Custom** edition — an actively maintained fork of the original
-[EVE-O Preview](https://github.com/Proopai/eve-o-preview). Current version: **8.3.10**.
+Repository: `Psykolic/eve-o-psy`. Current version: **8.3.10**.
+
+## Contributors
+
+- **Psykolic** — maintainer of this edition;
+- **Lord Smurfalot** — contributor;
+- **ArthoriusFM** — contributor;
+- **Phrynohyas Tig-Rah** — original EVE-O Preview author;
+- everyone in [Proopai/eve-o-preview](https://github.com/Proopai/eve-o-preview), the upstream
+  project this edition is built on.
+
+See [CONTRIBUTORS.md](CONTRIBUTORS.md). Missing someone? Open a PR.
 
 ## What it does
 
