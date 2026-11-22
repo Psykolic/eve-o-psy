@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
@@ -306,13 +307,25 @@ namespace EveOPreview.View
 
 		private void ShowLayoutPage(int indice)
 		{
+			this._currentPage = indice;
+
 			for (int i = 0; i < this._layoutPages.Count; i++)
 			{
 				bool selecionada = i == indice;
 				this._layoutPages[i].Visible = selecionada;
 
 				System.Windows.Forms.Button botao = this._layoutButtons[i];
-				botao.BackColor = selecionada ? SystemColors.Window : SystemColors.Control;
+				if (this._darkTheme)
+				{
+					botao.BackColor = selecionada ? Theme.Selected : Theme.Alt;
+					botao.ForeColor = selecionada ? Theme.Accent : Theme.Ink;
+				}
+				else
+				{
+					botao.BackColor = selecionada ? SystemColors.Window : SystemColors.Control;
+					botao.ForeColor = SystemColors.ControlText;
+				}
+
 				botao.Font = selecionada ? this._navFontSelected : this._navFont;
 			}
 
@@ -331,6 +344,39 @@ namespace EveOPreview.View
 					pagina.Width = largura;
 				}
 			}
+		}
+
+		// Barra de titulo escura do Windows 10/11 (atributo 20 = immersive dark mode).
+		[DllImport("dwmapi.dll")]
+		private static extern int DwmSetWindowAttribute(IntPtr hwnd, int atributo, ref int valor, int tamanho);
+
+		private void ApplyDarkTitleBar(bool escuro)
+		{
+			if (!this.IsHandleCreated)
+			{
+				return;
+			}
+
+			int valor = escuro ? 1 : 0;
+			try
+			{
+				// 20 = Windows 11 / 10 2004+; 19 = builds antigos.
+				DwmSetWindowAttribute(this.Handle, 20, ref valor, sizeof(int));
+				DwmSetWindowAttribute(this.Handle, 19, ref valor, sizeof(int));
+			}
+			catch (Exception)
+			{
+				// Windows antigo ou DWM ausente: a barra fica no tema do sistema.
+			}
+		}
+
+		protected override void OnHandleCreated(EventArgs e)
+		{
+			base.OnHandleCreated(e);
+
+			// O tema pode ter sido aplicado antes de a janela existir (o presenter
+			// carrega a configuracao antes do Show); a barra depende do handle.
+			this.ApplyDarkTitleBar(this._darkTheme);
 		}
 		#region Private fields
 		private readonly ApplicationContext _context;
@@ -356,6 +402,7 @@ namespace EveOPreview.View
 		private readonly Font _navFontSelected;
 		private Panel _groupsPanel;
 		private Panel _contentHost;
+		private int _currentPage;
 		#endregion
 
 		#region Private constants
@@ -387,7 +434,11 @@ namespace EveOPreview.View
 			this.InitOverlayLabelMap();
 			this.InitCycleGroupIndicatorMap();
 
-			this.AnimationStyleCombo.DataSource = Enum.GetValues(typeof(AnimationStyle));
+			// Items em vez de DataSource: o data binding recria os itens e volta o
+			// DrawMode para Normal, o que quebrava o desenho do tema no combo.
+			this.AnimationStyleCombo.Items.Clear();
+			this.AnimationStyleCombo.Items.AddRange(Enum.GetValues(typeof(AnimationStyle)).Cast<object>().ToArray());
+			this.AnimationStyleCombo.SelectedIndex = 0;
 
 			// A aba Grupos e construida em codigo (nao no Designer gerado) e a navegacao
 			// em blocos substitui o TabControl: as telas viram paineis num host unico.
@@ -399,6 +450,41 @@ namespace EveOPreview.View
 		{
 			get => this.MinimizeToTrayCheckBox.Checked;
 			set => this.MinimizeToTrayCheckBox.Checked = value;
+		}
+
+		private bool _darkTheme;
+
+		/// <summary>Tema escuro da janela (fase 3 do layout). Aplica na hora ao mudar.</summary>
+		public bool DarkTheme
+		{
+			get => this.DarkThemeCheckBox.Checked;
+			set
+			{
+				if (this.DarkThemeCheckBox.Checked != value)
+				{
+					this._suppressEvents = true;
+					this.DarkThemeCheckBox.Checked = value;
+					this._suppressEvents = false;
+				}
+
+				this.ApplyTheme(value);
+			}
+		}
+
+		private void ApplyTheme(bool escuro)
+		{
+			this._darkTheme = escuro;
+
+			Theme.Apply(this, escuro);
+			this.ApplyDarkTitleBar(escuro);
+			this.Invalidate(true);
+			this.Update();
+
+			// O Apply repinta os botoes; a selecao precisa ser reaplicada depois.
+			if (this._layoutButtons.Count > 0)
+			{
+				this.ShowLayoutPage(this._currentPage);
+			}
 		}
 
 		public string IconName
@@ -998,6 +1084,13 @@ namespace EveOPreview.View
 			if (this._suppressEvents)
 			{
 				return;
+			}
+
+			// Clicar no checkbox do tema muda o controle direto: reaplica aqui, senão a
+			// janela só mudaria no próximo start (o setter do presenter não é chamado).
+			if (ReferenceEquals(sender, this.DarkThemeCheckBox))
+			{
+				this.ApplyTheme(this.DarkThemeCheckBox.Checked);
 			}
 
 			this.ApplicationSettingsChanged?.Invoke();

@@ -38,6 +38,9 @@ namespace EveOPreview.Configuration
 		void RenameClientLabel(string oldTitle, string newTitle);
 
 		bool MinimizeToTray { get; set; }
+
+		/// <summary>Tema escuro da janela de configuração (fase 3 do layout).</summary>
+		bool DarkTheme { get; set; }
 		int ThumbnailRefreshPeriod { get; set; }
 		bool EventDrivenRefresh { get; set; }
 		int ReconciliationPeriod { get; set; }
