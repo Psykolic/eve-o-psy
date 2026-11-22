@@ -56,6 +56,48 @@ ts=...03:09:15Z refresh_ms=8.05   refreshes=13 thumbnails=7 gdi=83 dwm=7 cpu_pct
 `cpu_pct=-1.0` na primeira linha é esperado: o amostrador precisa de duas leituras para
 calcular diferença e devolve "indisponível" na primeira.
 
+## Medição longa (2026-11-22, 75 min com os dois hooks)
+
+Janela contínua de uso real, com o hook de foco/minimizar já ativo:
+
+| Item | Valor |
+|---|---|
+| Duração | **75 min** (05:49 → 07:04 UTC), **145 amostras** |
+| Clientes | 8 → 7 (um foi fechado durante a janela) |
+| `refresh_ms` (regime) | mín **3,64** · mediana **6,41** · máx **11,80** |
+| `cpu_pct` | mediana **0,00%** · máximo **0,30%** |
+| `gdi` | **88 → 83** (mín 83, máx 89) |
+| `eventos` | **126**, distribuídos em 27 das 145 janelas de 30 s |
+
+### O GDI caiu, e isso está certo
+
+O `gdi` terminou **5 abaixo** do início porque o número de thumbnails caiu de **8 para 7** — o app
+devolveu os handles junto com o thumbnail. O que provaria vazamento seria o contrário: `gdi`
+subindo com `thumbnails` constante. Não houve; o máximo da janela (89) é o mesmo platô da medição
+anterior de 1 h 39.
+
+### O fecho da conta
+
+A última amostra fecha sem sobra:
+
+```
+refreshes=1367 = reconciliacao 1241 + eventos 126
+```
+
+Ou seja: **todo refresh tem motivo contabilizado** — ou veio da reconciliação de 5 s, ou de um
+evento de janela. Se o contador de evento estivesse furado, essa soma não fecharia.
+
+### O que a janela reforça
+
+- o custo de refresh não muda com uso ativo (mediana 6,4 ms, máximo 11,8 ms — sem pico na casa dos
+  300 ms, que é só o primeiro ciclo);
+- a CPU não sobe quando o usuário alterna janelas (máximo 0,30%);
+- a instrumentação é coerente consigo mesma, e não só "parece certa".
+
+A janela foi encerrada ao fim da sessão de trabalho, não por falha: o alvo de 2 h não foi atingido,
+e não é necessário — os dois pontos que ela responderia (vazamento de GDI e custo sob uso) já estão
+respondidos com 1 h 39 + 75 min.
+
 ## O que gera evento (e o que não gera)
 
 O sinal de mudança de cliente vem de `SetWinEventHook(EVENT_OBJECT_CREATE..EVENT_OBJECT_NAMECHANGE)`.
