@@ -217,19 +217,31 @@ namespace EveOPreview.Presenters
 		{
 			try
 			{
-				string caminho = this._appConfig?.ConfigFileName;
+				// IAppConfig.ConfigFileName pode estar vazio: quem sabe o caminho real é o
+				// storage. Sem isso, o clique não fazia nada (File.Exists(null) === false).
+				string caminho = this._configurationStorage.GetConfigurationFilePath();
 
-				if (!string.IsNullOrWhiteSpace(caminho) && File.Exists(caminho))
+				if (!File.Exists(caminho))
+				{
+					// Ainda não existe: grava com os valores atuais para abrir algo útil.
+					this._configurationStorage.Save();
+				}
+
+				if (File.Exists(caminho))
 				{
 					Process.Start(new ProcessStartInfo(caminho) { UseShellExecute = true });
 					return;
 				}
 
-				string pasta = string.IsNullOrWhiteSpace(caminho) ? null : Path.GetDirectoryName(caminho);
+				string pasta = Path.GetDirectoryName(caminho);
 				if (!string.IsNullOrEmpty(pasta) && Directory.Exists(pasta))
 				{
 					Process.Start(new ProcessStartInfo(pasta) { UseShellExecute = true });
+					return;
 				}
+
+				// Nada abriu: registra o caminho para o próximo diagnóstico ter o dado.
+				AppOperationLog.Record("abrir configuracao: nada para abrir em " + caminho);
 			}
 			catch (Exception exception)
 			{

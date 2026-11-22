@@ -14,7 +14,7 @@ namespace EveOPreview.View
 	public partial class MainForm : Form, IMainFormView
 	{
 		private TabPage GroupsTabPage;
-		private System.Windows.Forms.ListView GroupsList;
+		private System.Windows.Forms.TreeView GroupsTree;
 
 		public Action OpenConfigurationFileRequested { get; set; }
 
@@ -24,64 +24,106 @@ namespace EveOPreview.View
 		/// </summary>
 		public void SetCycleGroups(IReadOnlyList<CycleGroupSummary> groups)
 		{
-			if (this.GroupsList == null)
+			if (this.GroupsTree == null)
 			{
 				return;
 			}
 
-			this.GroupsList.BeginUpdate();
+			this.GroupsTree.BeginUpdate();
 			try
 			{
-				this.GroupsList.Items.Clear();
+				this.GroupsTree.Nodes.Clear();
 
 				foreach (CycleGroupSummary grupo in groups ?? new List<CycleGroupSummary>())
 				{
-					var item = new ListViewItem("grupo " + grupo.Number);
-					item.SubItems.Add(grupo.HotkeyText);
-					item.SubItems.Add(grupo.Clients.Count == 0
-						? "(sem clientes)"
-						: string.Join(", ", grupo.Clients));
+					var node = new TreeNode(this.DescribeGroup(grupo));
 
-					if (grupo.IsEmpty)
+					if (grupo.Clients.Count == 0)
 					{
-						item.ForeColor = SystemColors.GrayText;
+						node.ForeColor = SystemColors.GrayText;
+					}
+					else
+					{
+						foreach (string cliente in grupo.Clients)
+						{
+							node.Nodes.Add(cliente);
+						}
+
+						node.Expand();
 					}
 
-					this.GroupsList.Items.Add(item);
+					this.GroupsTree.Nodes.Add(node);
 				}
 			}
 			finally
 			{
-				this.GroupsList.EndUpdate();
+				this.GroupsTree.EndUpdate();
 			}
+		}
+
+		/// <summary>
+		/// Uma linha por grupo, curta o bastante para a aba (327 px): sem colunas, sem
+		/// rolagem horizontal. Os clientes ficam como filhos, na ordem de ciclagem.
+		/// </summary>
+		private string DescribeGroup(CycleGroupSummary grupo)
+		{
+			if (grupo.ForwardHotkeys.Count == 0 && grupo.BackwardHotkeys.Count == 0)
+			{
+				return "grupo " + grupo.Number + " — sem atalho";
+			}
+
+			string avancar = grupo.ForwardHotkeys.Count == 0
+				? "—"
+				: string.Join(" / ", grupo.ForwardHotkeys);
+			string voltar = grupo.BackwardHotkeys.Count == 0
+				? "—"
+				: string.Join(" / ", grupo.BackwardHotkeys);
+
+			return "grupo " + grupo.Number + " — " + avancar + "  ⟲ " + voltar;
 		}
 
 		private void BuildCycleGroupsTab()
 		{
 			this.GroupsTabPage = new TabPage("Grupos");
 
-			this.GroupsList = new System.Windows.Forms.ListView
+			this.GroupsTree = new System.Windows.Forms.TreeView
 			{
 				Dock = DockStyle.Fill,
-				View = System.Windows.Forms.View.Details,
-				FullRowSelect = true,
-				MultiSelect = false,
-				HideSelection = false
+				HideSelection = false,
+				ShowLines = false,
+				BorderStyle = BorderStyle.FixedSingle,
+				ItemHeight = 20
 			};
-			this.GroupsList.Columns.Add("Grupo", 70);
-			this.GroupsList.Columns.Add("Atalhos", 330);
-			this.GroupsList.Columns.Add("Clientes", 430);
+
+			var dica = new Label
+			{
+				Dock = DockStyle.Top,
+				Height = 30,
+				Text = "Somente leitura",
+				TextAlign = ContentAlignment.MiddleLeft,
+				AutoEllipsis = true
+			};
+
+			var rodape = new Panel
+			{
+				Dock = DockStyle.Bottom,
+				Height = 40,
+				Padding = new Padding(0, 6, 4, 6)
+			};
 
 			var abrirArquivo = new System.Windows.Forms.Button
 			{
-				Text = "Abrir arquivo de configuração…",
-				Dock = DockStyle.Bottom,
-				Height = 34
+				Text = "Abrir arquivo…",
+				Width = 120,
+				Dock = DockStyle.Right
 			};
 			abrirArquivo.Click += delegate { this.OpenConfigurationFileRequested?.Invoke(); };
+			rodape.Controls.Add(abrirArquivo);
 
-			this.GroupsTabPage.Controls.Add(this.GroupsList);
-			this.GroupsTabPage.Controls.Add(abrirArquivo);
+			// Ordem de docking: Fill primeiro, bordas depois (o Fill consome o que sobra).
+			this.GroupsTabPage.Controls.Add(this.GroupsTree);
+			this.GroupsTabPage.Controls.Add(rodape);
+			this.GroupsTabPage.Controls.Add(dica);
 
 			this.ContentTabControl.TabPages.Add(this.GroupsTabPage);
 			this.SetCycleGroups(null);
