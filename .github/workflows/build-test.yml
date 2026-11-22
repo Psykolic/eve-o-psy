@@ -53,10 +53,51 @@ jobs:
       - name: Build
         run: dotnet build src/EVE-O-Preview.sln -c Release
 
-      # DWM/GDI/hotkey integration tests need a real interactive desktop session;
-      # they run in the maintainer's pipeline, not on hosted runners.
       - name: Tests (without interactive desktop)
         shell: bash
         run: >
           dotnet test src/EveO.Tests/EveO.Tests.csproj -c Release --no-build --nologo
           --filter "FullyQualifiedName!~EveO.Tests.Integration&FullyQualifiedName!~GdiStress"
+
+  windows-desktop:
+    name: Windows (desktop: DWM/GDI/hotkey)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        run: dotnet build src/EVE-O-Preview.sln -c Release
+
+      # Precisa de sessao interativa com desktop (DWM). Roda no runner proprio
+      # da VM e nos runners Windows hospedados do GitHub.
+      - name: Desktop integration tests
+        shell: bash
+        run: >
+          dotnet test src/EveO.Tests/EveO.Tests.csproj -c Release --no-build --nologo
+          --filter "FullyQualifiedName~EveO.Tests.Integration"
+
+  package:
+    name: Package (win-x64 single-file)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish single-file
+        run: >
+          dotnet publish src/Eve-O-Preview/Eve-O-Preview.csproj -c Release -r win-x64
+          --self-contained false -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EVEOTARGET=Linux -p:EnableWindowsTargeting=true -o pkg
+
+      - name: Check the artifact
+        run: test -s pkg/EVE-O-Preview.exe && ls -la pkg/EVE-O-Preview.exe
