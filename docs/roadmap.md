@@ -11,7 +11,7 @@
 | **0** | **Foundations** | Auditoria completa, baseline estabelecido | Concluído | — | ✅ concluída |
 | **1** | **Stabilization** | Correções críticas, infraestrutura de testes, camadas de abstração | 1–2 sprints | **P0/P1** | 🟡 1.3 parcial; 1.1, 1.2, 1.4, 1.5, 1.6 e 1.7 ✅ |
 | **2** | **Architecture Cleanup** | Separação de camadas, virtualização, padrões reativos | 3–5 sprints | **P1/P2** | ✅ concluída |
-| **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ⬜ cross-platform **adiada** (ADR-009) · extensibilidade (3.3/3.4/3.6) liberada |
+| **3** | **Cross-Platform & Extensibility** | Avalonia/Uno, plugin architecture, event sourcing | 6+ sprints | **P2/P3** | ✅ **encerrada em 2026-11-22**: cross-platform adiada (ADR-009), extensibilidade **não fazer** (o projeto não será aberto a terceiros) |
 
 > **Legenda de Prioridade**: P0 = Blocker (impede progresso), P1 = Crítico (risco alto), P2 = Importante (dívida técnica), P3 = Nice-to-have (melhoria futura)
 
@@ -24,7 +24,7 @@
 |------|--------|-----------|
 | 1.1 Testes | ✅ | `EveO.Core.Tests` (130 `[Fact]`) + `EveO.Tests` (71 `[Fact]`) |
 | 1.2 Abstração do provider | ✅ | a intenção foi cumprida com **duas** abstrações em vez de uma: `IDwmThumbnail` (Core) e `IStaticThumbnailProvider` (Infrastructure). Views dependem das interfaces e os testes usam fakes — o gerenciador não conhece DWM |
-| 1.3 Handles | 🟡 parcial | DWM: `SafeDwmThumbnailHandle` + `IDwmThumbnail : IDisposable` (antes era `IntPtr` solto, sem finalizer). GDI: mantém `try/finally` na ordem DC→bitmap documentada + `GdiStressTests` (1.000 capturas) — **não** convertido a `SafeHandle` de propósito |
+| 1.3 Handles | ✅ decidido **não fazer** o resto | DWM: `SafeDwmThumbnailHandle` + `IDwmThumbnail : IDisposable`. GDI: `try/finally` na ordem DC→bitmap + `GdiStressTests` (1.000 capturas). O `SafeHandle` de GDI foi descartado **com evidência**: 1 h 39 min de uso real, 8 clientes, `gdi` 85→89 com tendência de +0,1 — não há vazamento para corrigir |
 | 1.4 Validação de config | ✅ | `ConfigurationValidator` + `ConfigurationLimits` (faixa única para aviso e clamp); `Load()` devolve `ConfigurationValidationResult` e o app avisa o que foi corrigido; 17 testes em `EveO.Core.Tests/Configuration` |
 | 1.5 Métricas | ✅ | `EveOMetrics` (6 instrumentos) no meter `EveO.Preview`, retrato local a cada 30 s (`EVE_METRICS=1`), `docs/metrics.md` + `metrics-dashboard.json`; **sem** exporter de rede por decisão (ver doc) |
 | 1.6 Benchmarks | ✅ | `benchmarks/EveO.Benchmarks` (8 benchmarks do Core), `benchmarks/baseline.json` e job semanal que falha acima de 20% (ruído medido: 8,3%); caminhos de DWM/WPF ficam fora e isso está documentado |
@@ -161,10 +161,10 @@ Habilitar execução nativa no Linux/macOS via Avalonia/Uno, introduzir plugin a
 |----|-------------|----------------------------------|------------|----------------|
 | **3.1** ⏸ | Proof-of-Concept Avalonia 11 / Uno Platform | • `EveO.Avalonia` project compila e roda no Linux (Wayland + X11)<br>• Thumbnail preview via compositor nativo (não DWM) — ex: `wlr-screencopy` / PipeWire<br>• Feature parity: cycle clients, minimize all, layout save/load | **P2** | #6.13 |
 | **3.2** ⏸ | Abstração de plataforma `IPlatformWindowManager` + `IPlatformThumbnailProvider` | • Windows: `DwmThumbnailProvider`, `Win32WindowManager`<br>• Linux: `PipeWireThumbnailProvider`, `WaylandWindowManager` / `X11WindowManager`<br>• macOS: `ScreenCaptureKitThumbnailProvider`, `CocoaWindowManager` | **P2** | #6.1, #6.8 |
-| **3.3** ⬜ | Plugin Architecture (MEF / System.ComponentModel.Composition ou custom) | • `IPlugin` interface com `Initialize(IServiceCollection)`, `Metadata`<br>• Plugins carregados de `%APPDATA%\EVE-O\Plugins\`<br>• Exemplo plugin: "Discord Rich Presence", "Overlay Custom", "Metrics Exporter"<br>• Sandbox: plugins rodam em `AssemblyLoadContext` isolado | **P2** | #6.15 |
-| **3.4** ⬜ | Event Sourcing para layout/histórico de clientes | • `ClientLayoutEventStore` (EventStoreDB ou SQLite + append-only)<br>• Eventos: `ClientAdded`, `ClientRemoved`, `LayoutSaved`, `CycleGroupChanged`, `FrameSettingsChanged`<br>• Projeções: `CurrentLayoutView`, `ClientSessionHistory`<br>• Time-travel debug: replay eventos para reproduzir estado | **P3** | #6.14 |
+| **3.3** ⏸ | Plugin Architecture (MEF / System.ComponentModel.Composition ou custom) | • `IPlugin` interface com `Initialize(IServiceCollection)`, `Metadata`<br>• Plugins carregados de `%APPDATA%\EVE-O\Plugins\`<br>• Exemplo plugin: "Discord Rich Presence", "Overlay Custom", "Metrics Exporter"<br>• Sandbox: plugins rodam em `AssemblyLoadContext` isolado | **P2** | #6.15 |
+| **3.4** ❌ | Event Sourcing para layout/histórico de clientes | • `ClientLayoutEventStore` (EventStoreDB ou SQLite + append-only)<br>• Eventos: `ClientAdded`, `ClientRemoved`, `LayoutSaved`, `CycleGroupChanged`, `FrameSettingsChanged`<br>• Projeções: `CurrentLayoutView`, `ClientSessionHistory`<br>• Time-travel debug: replay eventos para reproduzir estado | **P3** | #6.14 |
 | **3.5** ⏸ | CI/CD Multi-platform (Windows, Linux, macOS) | • Build matrix: win-x64, linux-x64, osx-x64, osx-arm64<br>• Publish: MSIX (Windows), AppImage/Flatpak (Linux), .app/dmg (macOS)<br>• Auto-update via GitHub Releases + custom updater | **P3** | #7.6 |
-| **3.6** ⬜ | Documentação de contribuição + plugin SDK | • `CONTRIBUTING.md`, `PLUGIN_DEVELOPMENT.md`<br>• NuGet package `EveO.Plugin.Sdk`<br>• Template `dotnet new eveo-plugin` | **P3** | #6.15 |
+| **3.6** ❌ | Documentação de contribuição + plugin SDK | • `CONTRIBUTING.md`, `PLUGIN_DEVELOPMENT.md`<br>• NuGet package `EveO.Plugin.Sdk`<br>• Template `dotnet new eveo-plugin` | **P3** | #6.15 |
 
 ### Decisão do ADR-009 (2026-11-21)
 
@@ -177,6 +177,20 @@ A Fase 3 foi **dividida em duas trilhas**:
 
 Gates para reabrir a trilha cross-platform: demanda comprovada E spike de 3 dias mostrando ≥ 90% dos
 casos com captura nativa. Ver `audits/adr-009-alvo-fase-3.md`.
+
+### Decisão de 2026-11-22 (extensibilidade)
+
+**3.4 e 3.6 — não fazer.** O projeto **não será aberto a contribuição de terceiros**, e sem isso
+não existe público para SDK, `CONTRIBUTING.md`, template `dotnet new` nem para plugin de comunidade.
+Event sourcing cai pelo mesmo motivo: só se justificaria para auditoria/histórico que ninguém pediu.
+
+**3.3 — parado no incremento 1.** O contrato (`IPlugin`, `PluginLoader` com contexto isolado,
+`PluginHost`) está no `main` e carrega de `Plugins\` ao lado do exe, provado em execução no Wine.
+Ficou **sem API de app** — e sem demanda que a justifique, já que plugin era justamente o item de
+abertura para terceiros. Sem a pasta `Plugins\`, o custo em runtime é zero.
+
+Consequência: a **Fase 3 está encerrada**. Reabrir qualquer item exige decisão explícita do
+mantenedor, não uma leitura nova deste documento.
 
 ### Dependências
 - 3.1 → 3.2 (PoC valida abstrações)
@@ -237,6 +251,11 @@ casos com captura nativa. Ver `audits/adr-009-alvo-fase-3.md`.
 | Test coverage | 0% | 60% | 80% | 85% |
 | Platforms suportados | Windows | Windows | Windows | Win/Linux/macOS |
 
+**O que desses alvos tem medição (2026-11-22):** CPU idle **0,04%** (alvo <1%), refresh **4–10 ms**
+(alvo <30 ms), handles estáveis (**89**, 1 h 39 com 8 clientes). **Memória, tempo de startup e
+cobertura de testes nunca foram medidos** — são promessas do plano, não resultados. Ver
+[`metrics.md`](metrics.md).
+
 ---
 
 ## Governança
@@ -248,4 +267,4 @@ casos com captura nativa. Ver `audits/adr-009-alvo-fase-3.md`.
 
 ---
 
-*Documento vivo — atualizar a cada sprint review. Próxima revisão: fim da Fase 1.*
+*Documento vivo. Última revisão: 2026-11-22 (Fase 3 encerrada, 1.3 decidido com evidência).*
