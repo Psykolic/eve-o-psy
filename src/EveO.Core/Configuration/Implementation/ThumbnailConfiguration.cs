@@ -596,6 +596,23 @@ namespace EveOPreview.Configuration.Implementation
 			this.PerClientLabel[currentClient] = sanitized;
 		}
 
+		/// <summary>Move a label quando o cliente troca de nome (troca de personagem).</summary>
+		public void RenameClientLabel(string oldTitle, string newTitle)
+		{
+			if (string.IsNullOrEmpty(oldTitle) || string.IsNullOrEmpty(newTitle) || oldTitle == newTitle)
+			{
+				return;
+			}
+
+			if (this.PerClientLabel == null || !this.PerClientLabel.TryGetValue(oldTitle, out string label))
+			{
+				return;
+			}
+
+			this.PerClientLabel.Remove(oldTitle);
+			this.PerClientLabel[newTitle] = label;
+		}
+
 		public bool IsPriorityClient(string currentClient)
 		{
 			return this.PriorityClients.Contains(currentClient);
