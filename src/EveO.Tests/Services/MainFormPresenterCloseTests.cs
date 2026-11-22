@@ -50,7 +50,8 @@ public sealed class MainFormPresenterCloseTests
             view.Object,
             mediator.Object,
             new Mock<IThumbnailConfiguration>(MockBehavior.Loose).Object,
-            storage.Object);
+            storage.Object,
+            new Mock<IAppConfig>(MockBehavior.Loose).Object);
 
         var firstPass = new ViewCloseRequest();
         InvokeClose(presenter, firstPass);
