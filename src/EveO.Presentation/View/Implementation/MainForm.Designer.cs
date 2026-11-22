@@ -235,7 +235,7 @@ namespace EveOPreview.View
 			ContentTabControl.Controls.Add(AboutTabPage);
 			ContentTabControl.Dock = DockStyle.Fill;
 			ContentTabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
-			ContentTabControl.ItemSize = new Size(35, 120);
+			ContentTabControl.ItemSize = new Size(30, 120);
 			ContentTabControl.Location = new Point(0, 0);
 			ContentTabControl.Margin = new Padding(4);
 			ContentTabControl.Multiline = true;
