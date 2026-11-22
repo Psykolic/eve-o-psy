@@ -17,6 +17,7 @@ Forgejo — aqui é o único lugar onde o texto sobreviveu.
 | [8.3.6](8.3.6.md) | Clique no nome do cliente só seleciona; a caixinha é que marca "não mostrar" |
 | [8.3.7](8.3.7.md) | Fase 1 do layout: barra lateral chapada, acento e alinhamentos |
 | [8.3.8](8.3.8.md) | Fase 2 do layout: navegação em blocos com ícones e janela 455×388 |
+| [8.3.9](8.3.9.md) | Spotlight: aparece no login, resize não volta no meio do gesto e Lock não bloqueia |
 
 A partir da 8.3.1 a fonte da verdade é a release no Forgejo (`scripts/release.sh` publica o corpo).
 Estas notas são histórico, não são republicadas.
