@@ -7,6 +7,13 @@ versão (medições, decisões, limitações) está em [`docs/releases`](docs/re
 
 Nada ainda.
 
+## [8.3.11] — 2026-11-23
+
+### Corrigido
+
+- O diálogo de criação e edição de grupos acompanha a opção de janela sempre no topo,
+  evitando que o diálogo fique encoberto e bloqueie o uso do aplicativo.
+
 ## [8.3.10] — 2026-11-22
 
 ### Adicionado

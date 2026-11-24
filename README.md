@@ -3,7 +3,7 @@
 A task switcher for multiple EVE Online clients: live thumbnails of every client, one click or
 hotkey to bring one to the foreground.
 
-Repository: `Psykolic/eve-o-psy`. Current version: **8.3.10**.
+Repository: `Psykolic/eve-o-psy`. Current version: **8.3.11**.
 
 ## Contributors
 
