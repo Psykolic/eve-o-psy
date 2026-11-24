@@ -40,10 +40,11 @@ namespace EveOPreview.View
 		}
 
 		/// <summary>Devolve o modelo preenchido ou <c>null</c> quando cancelado.</summary>
-		public static CycleGroupEditModel Edit(IWin32Window parent, CycleGroupEditModel model)
+		public static CycleGroupEditModel Edit(Form parent, CycleGroupEditModel model)
 		{
 			using (var dialog = new CycleGroupDialog(model))
 			{
+				dialog.TopMost = parent.TopMost;
 				return dialog.ShowDialog(parent) == DialogResult.OK ? dialog._model : null;
 			}
 		}
